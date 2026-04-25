@@ -1,0 +1,247 @@
+= beryl-recipes
+:toc: left
+:toclevels: 2
+:source-highlighter: rouge
+:icons: font
+
+[.lead]
+Recettes officielles Aloli pour
+https://github.com/aloli-crystal/crystal-beryl[beryl] —
+le provisionneur Crystal pour serveurs FreeBSD bare-metal.
+
+NOTE: Ce dépôt est complémentaire à crystal-beryl. Il contient les
+*recettes YAML* qui déclarent l'état désiré d'un serveur FreeBSD :
+packages, services, users, configuration sshd, firewall, etc.
+La logique d'exécution (les *primitives*) vit dans le binaire
+beryl. Les recettes vivent ici, versionnées, forkables.
+
+== Statut
+
+[IMPORTANT]
+====
+*Phase 0 — préparation.* Le dépôt est volontairement vide en
+contenu. La structure est posée, le format des recettes est
+spécifié, mais aucune recette n'est encore livrée.
+
+La feuille de route détaillée se trouve dans
+https://github.com/aloli-crystal/crystal-beryl/blob/production/apply-recipes-architecture.adoc[`apply-recipes-architecture.adoc`]
+côté crystal-beryl.
+
+* *Phase 1* (PoC) : 2 ou 3 recettes (`freebsd-updates`, une recette
+  agrégat `post-install` minimale).
+* *Phase 2* : couverture des recettes Aloli courantes (`ohmyzsh`,
+  `ssh-hardening`, `firewall-pf`, `ruby`, `nginx-passenger`,
+  `nginx-hardening`, `letsencrypt`).
+* *Phase 3* : tag `v1.0.0` quand le tronc commun est rodé.
+====
+
+== Vue d'ensemble
+
+beryl orchestre les recettes via la commande `beryl apply <host>`.
+Les recettes sont lues depuis :
+
+. *Le dossier d'orchestration du host* : `~/.beryl/<société>/<domaine>/<host>/`
+. *Les taps additionnels* : `~/.beryl/recipes-taps/<nom>/recipes/`
+. *Le dépôt principal* (ce dépôt-ci) : `~/.beryl/recipes/recipes/`
+
+Beryl résout les `requires:` récursivement et applique le tri
+topologique. Chaque recette appliquée est *idempotente* : relancer
+`beryl apply` ne fait que ce qui n'est pas déjà à l'état désiré.
+
+== Format d'une recette
+
+[source,yaml]
+----
+# recipes/<nom>.yml
+recipe: <nom>                     # doit correspondre au nom du fichier
+description: Une phrase courte qui dit ce que fait la recette
+
+requires:                         # autres recettes à exécuter avant (facultatif)
+  - freebsd-updates
+  - autre-recette
+
+parameters:                       # paramètres typés, facultatif
+  users:
+    type: array
+    required: true
+    items: string
+    description: Liste des users concernés
+  notify_email:
+    type: string
+    default: admin@example.com
+
+steps:                            # primitives ou autres recettes appelées
+  - pkg-install:
+      packages: [zsh, git, curl]
+  - file-template:
+      path: /etc/example.conf
+      content: |
+        # Template avec interpolation simple
+        notify={{ notify_email }}
+  - service-enable:
+      name: example
+----
+
+=== Recette atomique vs recette agrégat
+
+* *Atomique* : peu de `requires:`, beaucoup de `steps:`. Réalise
+  un domaine précis (ex: `ohmyzsh`, `ssh-hardening`).
+* *Agrégat* (« méta-recette ») : beaucoup de `requires:`, peu ou
+  pas de `steps:`. Sert à composer un parcours type (ex:
+  `post-install`, `web-server`).
+
+beryl traite les deux pareillement — pas de distinction de type,
+pas de mot-clé spécial. Une recette est une recette.
+
+=== Exemple agrégat
+
+[source,yaml]
+----
+# recipes/post-install.yml
+recipe: post-install
+description: Post-install Aloli standard pour FreeBSD
+requires:
+  - freebsd-updates
+  - firewall-pf
+  - ssh-hardening
+  - ohmyzsh
+  - ruby
+  - nginx-passenger
+  - nginx-hardening
+# pas de steps : tout est dans les requires
+----
+
+== Conventions
+
+[cols="2,3", options="header"]
+|===
+| Aspect | Convention
+
+| Nommage de fichier
+| `<nom>.yml` en kebab-case minuscule (ex: `nginx-passenger.yml`,
+  pas `NginxPassenger.yml` ni `nginx_passenger.yml`).
+
+| Nommage du recipe
+| Doit être *strictement identique* au nom du fichier sans `.yml`.
+  beryl le vérifie au chargement.
+
+| Ordre des champs
+| `recipe`, `description`, `requires`, `parameters`, `steps`. Pas
+  obligatoire mais lisible.
+
+| Description
+| Une phrase courte qui tient sur une ligne dans la sortie d'un
+  futur `beryl recipes list`.
+
+| Tabulation
+| 2 espaces, jamais de tabs (cohérent avec les YAML beryl côté
+  host).
+
+| Caractères
+| UTF-8, pas de BOM.
+|===
+
+== Comment forker pour ses propres recettes
+
+Trois approches possibles, par ordre de complexité :
+
+=== 1. Override par dossier host (cas le plus simple)
+
+Pour adapter une recette officielle à *un host particulier*,
+créez une copie locale dans le dossier du host :
+
+[source,sh]
+----
+cd ~/.beryl/<société>/<domaine>/<host>
+cp ../../../recipes/recipes/ohmyzsh.yml ./ohmyzsh.yml
+vim ohmyzsh.yml                  # adaptez librement
+----
+
+beryl prend la copie locale en priorité. Pas besoin de fork.
+
+=== 2. Tap additionnel (cas multi-hosts, multi-clients)
+
+Pour un *jeu de recettes maison réutilisé sur plusieurs hosts*,
+créez un dépôt git séparé et déclarez-le comme tap :
+
+[source,sh]
+----
+beryl recipes-tap add https://github.com/<vous>/private-recipes.git
+----
+
+beryl clone dans `~/.beryl/recipes-taps/private-recipes/` et le
+résout avec priorité plus haute que le dépôt principal.
+
+NOTE: Le mécanisme `recipes-tap` est en cours de design. Voir
+crystal-beryl `apply-recipes-architecture.adoc` section
+« Questions ouvertes ».
+
+=== 3. Fork du dépôt principal (cas extrême)
+
+Pour réécrire intégralement le tronc commun (rare), forkez ce
+dépôt et pointez beryl vers votre fork :
+
+[source,yaml]
+----
+# ~/.beryl/_default.yml
+recipes:
+  repo_url: https://github.com/<vous>/beryl-recipes.git
+  branch: production
+----
+
+== Comment contribuer
+
+. Forkez ce dépôt
+. Créez une branche `feat/<nom-recette>` depuis `production`
+. Ajoutez votre recette dans `recipes/<nom>.yml`
+. Si la recette mérite un test, ajoutez-le dans `tests/`
+. Ouvrez une *Pull Request* vers `production` avec :
++
+* Le besoin métier : à quoi sert la recette
+* Le test (si présent)
+* Une vérification terrain (sur quel(s) FreeBSD vous l'avez
+  validée)
+
+Les recettes acceptées dans ce dépôt principal doivent être :
+
+* *FreeBSD-natives* (pas de Linuxismes — `pw`, pas `useradd` ;
+  `service`, pas `systemctl` ; `pkg`, pas `apt`).
+* *Génériques* (utilisables par n'importe quel utilisateur de
+  beryl, pas spécifiques à Aloli).
+* *Idempotentes* (relancer `beryl apply` plusieurs fois doit
+  être un no-op).
+* *Documentées* (description claire, paramètres typés, exemple
+  d'usage en commentaire si non trivial).
+
+Pour les recettes spécifiques à un client, à une infra
+particulière, ou expérimentales, utilisez un *tap* (option 2
+ci-dessus) plutôt que de soumettre une PR au dépôt principal.
+
+== Layout du dépôt
+
+[source,text]
+----
+beryl-recipes/
+├── README.adoc                  # ce fichier
+├── LICENSE                      # MIT
+├── CHANGELOG.adoc               # une entrée par recette ajoutée/modifiée
+├── recipes/                     # toutes les recettes (vide en phase 0)
+│   ├── .gitkeep
+│   └── <nom>.yml                # à venir
+└── tests/                       # tests d'intégration (vide en phase 0)
+    └── .gitkeep
+----
+
+Pas de séparation `meta-recipes/` vs `recipes/` — toutes les
+recettes vivent dans `recipes/`, format uniforme.
+
+== Licence
+
+MIT © ALOLI sas. Voir link:LICENSE[LICENSE].
+
+== Liens
+
+* https://github.com/aloli-crystal/crystal-beryl[crystal-beryl] —
+  le binaire qui exécute ces recettes
+* https://github.com/aloli-crystal/crystal-beryl/blob/production/apply-recipes-architecture.adoc[apply-recipes-architecture.adoc] —
+  document de design détaillé pour `beryl apply`

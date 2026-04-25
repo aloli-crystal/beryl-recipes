@@ -1,0 +1,8 @@
+# Aucun artefact à ignorer pour l'instant — tout dans ce dépôt est
+# du YAML et du Markdown/AsciiDoc versionné. À étendre si on ajoute
+# une CI ou des outils de validation locale.
+
+.DS_Store
+*.swp
+*.bak
+*~

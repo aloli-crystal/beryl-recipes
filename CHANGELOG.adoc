@@ -1,0 +1,44 @@
+= Changelog
+:toc: left
+
+Toutes les modifications notables de ce dépôt de recettes sont
+documentées dans ce fichier. Une entrée par recette ajoutée,
+modifiée ou retirée.
+
+Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog].
+
+Versionnage par tags git aligné sur les jalons beryl :
+
+* `v0.x.y` — phase 0/1, recettes en cours de stabilisation, format
+  YAML pas encore figé.
+* `v1.0.0` — tronc commun rodé, format figé, recettes documentées
+  et testées.
+
+== [Non publié]
+
+== 0.0.0 (25 avril 2026)
+
+=== Ajouté
+
+==== Fondations du dépôt
+
+* Squelette initial (`README.adoc`, LICENSE MIT, layout
+  `recipes/` + `tests/`).
+* Convention Aloli : branche par défaut `production`, messages de
+  commit en français, licence MIT, auteurs `ALOLI sas`.
+
+==== Documentation
+
+* README explique le rôle du dépôt, le format YAML d'une recette
+  (atomique vs agrégat), les conventions de nommage, et les trois
+  approches pour adapter / forker (override par dossier host,
+  tap additionnel, fork complet).
+* Lien vers le document de design
+  `apply-recipes-architecture.adoc` côté crystal-beryl.
+
+=== Pas encore livré
+
+* Aucune recette à ce stade. Le dépôt est prêt à recevoir les
+  recettes de la phase 1 (PoC) puis de la phase 2 (couverture
+  Aloli courante).
+* Le mécanisme `recipes-tap` côté beryl est en cours de design.
