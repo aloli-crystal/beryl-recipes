@@ -1,0 +1,257 @@
+= Setup Headscale auto-hébergé Aloli (Phase 1)
+:toc: left
+:toclevels: 2
+:source-highlighter: rouge
+:icons: font
+
+[.lead]
+Procédure manuelle de bootstrap pour le déploiement Headscale décrit
+dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
+*une fois*, dans l'ordre, avant d'appliquer les recettes
+`headscale-server` / `headscale-backup` / `headscale-standby`.
+
+== Architecture cible
+
+[source]
+----
+                     ┌─────────────────────────────────┐
+                     │  aloli-aloli/headscale-state    │  ← repo GitHub privé
+                     │  (dépôt de backup, 1 fichier :  │     ne contient PAS
+                     │   headscale-state.sql.gz)       │     de secret runtime
+                     └────────────┬────────────────────┘
+                                  │ git push toutes les 5 min (primary)
+                                  │ git pull toutes les 5 min (standbys)
+              ┌───────────────────┼───────────────────┐
+              │                   │                   │
+        ┌─────▼──────┐      ┌─────▼──────┐      ┌─────▼──────┐
+        │  RBX       │      │  SBG       │      │  GRA       │
+        │  Headscale │      │  Headscale │      │  Headscale │
+        │  ACTIVE    │      │  standby   │      │  standby   │
+        │  (primary) │      │  (chaud)   │      │  (chaud)   │
+        └────────────┘      └────────────┘      └────────────┘
+              │                  ▲                   ▲
+              │                  └── failover manuel ┘
+              │                  (DNS + service start)
+              ▼
+        headscale.aloli.net   (record A pointe sur le primary, TTL 60 s)
+----
+
+* *RPO* : 5 min (intervalle entre 2 snapshots commités).
+* *RTO* : 15-30 min (DNS TTL + git pull + restore SQL + service start).
+* *Pas d'active-active* : le mesh Wireguard P2P survit à un Headscale
+  down sans coupure réseau ; seuls les changements de roster sont
+  gelés pendant le failover.
+
+== Étape 1 — Créer le repo GitHub privé
+
+Sur https://github.com/organizations/aloli-aloli (l'organisation
+opérationnelle, distincte d'aloli-crystal qui héberge le code) :
+
+. *Settings → Repositories → New repository*.
+. Nom : `headscale-state`.
+. Visibilité : *Private*.
+. Initialiser avec un README minimal (`README.md` une ligne suffit).
+. Cocher *Add a license: none* (pas pertinent pour un dump de DB).
+. Cliquer *Create repository*.
+
+[NOTE]
+====
+Le repo restera quasi-vide en dehors d'un seul fichier
+`headscale-state.sql.gz` (~quelques KB) commit après commit. Les
+diffs sont quand même lisibles car le dump est en SQL textuel
+gzippé : `git show HEAD -- headscale-state.sql.gz | gunzip` rend le
+delta humainement consultable.
+
+Voir aussi https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository[doc GitHub].
+====
+
+== Étape 2 — Générer la deploy key SSH par nœud Headscale
+
+Une *deploy key par nœud* (RBX, SBG, GRA) — plus simple à
+révoquer individuellement si un nœud est compromis. Sur chaque
+nœud (en root) :
+
+[source,shell]
+----
+ssh-keygen -t ed25519 \
+  -f /root/.ssh/id_ed25519_headscale_state \
+  -C "headscale-state@$(hostname -s)" \
+  -N ""
+chmod 0600 /root/.ssh/id_ed25519_headscale_state
+cat /root/.ssh/id_ed25519_headscale_state.pub
+----
+
+Copier la sortie de `cat` (une ligne `ssh-ed25519 AAAA... headscale-state@rbx`).
+
+== Étape 3 — Ajouter chaque deploy key côté GitHub
+
+Sur https://github.com/aloli-aloli/headscale-state/settings/keys :
+
+. *Add deploy key*.
+. Titre : `rbx` (ou `sbg`, `gra`).
+. Coller la clé publique copiée à l'étape 2.
+. *IMPORTANT* : cocher *Allow write access* uniquement sur le
+  primary (RBX). Les standbys (SBG, GRA) peuvent rester en lecture
+  seule — ils ne pushent pas, ils pullent.
+. Cliquer *Add key*.
+
+Répéter pour chaque nœud.
+
+[WARNING]
+====
+La distinction read-only/write-access est volontaire : si un standby
+est compromis, l'attaquant ne peut pas réécrire l'historique du
+backup pour camoufler ses traces. Seul le primary a le droit d'écrire.
+Lors du failover, le nouveau primary doit voir sa deploy key passée
+en *write* avant de pouvoir pusher (étape qui s'ajoute aux 15-30 min
+de RTO).
+====
+
+== Étape 4 — Appliquer les recettes Aloli
+
+[source,shell]
+----
+# Sur le primary (typiquement RBX) :
+beryl apply --recipe headscale-server  rbx.aloli.net
+beryl apply --recipe headscale-backup  rbx.aloli.net
+
+# Sur chaque standby (SBG, GRA), recipe à venir Phase 1b :
+beryl apply --recipe headscale-server  sbg.aloli.net
+beryl apply --recipe headscale-standby sbg.aloli.net
+----
+
+[NOTE]
+====
+La recipe `headscale-server` est *identique* pour primary et
+standbys (même installation, même config). C'est `headscale-backup`
+vs `headscale-standby` qui diverge : le primary push, les standbys
+pull et gardent leur service éteint.
+====
+
+== Étape 5 — Premier clone + premier snapshot (primary uniquement)
+
+Sur le primary, après application des recettes :
+
+[source,shell]
+----
+# Clone initial du repo (helper one-shot posé par headscale-backup) :
+/usr/local/sbin/headscale-backup-init.sh
+
+# Lancement manuel du premier backup (pour vérifier que tout marche
+# avant que le cron prenne le relais) :
+/usr/local/sbin/headscale-backup.sh
+
+# Inspection :
+tail -f /var/log/headscale-backup.log
+git -C /etc/aloli-headscale-state log --oneline
+----
+
+Le cron passera à `*/5 * * * *` automatiquement à partir de la
+minute suivante.
+
+== Étape 6 — Premier clone des standbys
+
+Sur chaque standby, recipe `headscale-standby` à venir (Phase 1b).
+À l'application, elle déclenchera automatiquement le clone initial
+(deploy key read-only suffit) et posera le cron `git pull` toutes
+les 5 min.
+
+Vérification manuelle :
+
+[source,shell]
+----
+git -C /etc/aloli-headscale-state log --oneline | head -5
+ls -la /etc/aloli-headscale-state/headscale-state.sql.gz
+# Le fichier doit être à jour à 5 min près du primary.
+----
+
+== Procédure de failover (manuelle, ~15-30 min)
+
+Quand le primary tombe et qu'on doit basculer sur un standby :
+
+. *Vérifier* que le primary est bien hors-service (pas un faux
+  positif réseau temporaire) — `headscale serve` répond ?
+. *Sur le standby cible (par ex. SBG)*, lancer :
++
+[source,shell]
+----
+/usr/local/sbin/headscale-promote.sh
+----
++
+Ce script (livré par la recipe `headscale-standby`) fait :
++
+* `git pull` final pour avoir le dump le plus frais.
+* `gunzip -c headscale-state.sql.gz | sqlite3 /var/db/headscale/db.sqlite`.
+* `sysrc headscale_enable=YES && service headscale start`.
+
+. *Côté GitHub*, ouvrir
+  https://github.com/aloli-aloli/headscale-state/settings/keys[Settings
+  → Deploy keys] et cocher *Allow write access* sur la clé du
+  nouveau primary. Décocher sur l'ancien (qui peut-être ne reviendra
+  pas, ou reviendra plus tard comme standby).
+
+. *Mettre à jour le DNS* :
++
+[source,shell]
+----
+# Côté beryl, depuis le laptop opérateur :
+beryl apply --recipe dns-record-headscale --account aloli \
+  --target sbg.aloli.net
+----
++
+La propagation prend ~60 s avec TTL 60.
+
+. *Vérifier* depuis un client tailscale que `headscale-cli` répond
+  à la nouvelle adresse : `tailscale debug derp-map`.
+
+. *Ancien primary à la reprise* : appliquer la recipe
+  `headscale-standby` dessus pour qu'il rejoigne comme standby
+  chaud (pas comme primary). La promotion suivante (si nécessaire)
+  refera cette procédure dans l'autre sens.
+
+== Maintenance / vérifications
+
+=== Audit du roster
+
+[source,shell]
+----
+# Voir tous les changements de roster des 7 derniers jours :
+cd /etc/aloli-headscale-state
+git log --since="7 days ago" --oneline
+
+# Voir le delta entre 2 snapshots :
+git show HEAD~10 -- headscale-state.sql.gz | gunzip > /tmp/old.sql
+git show HEAD    -- headscale-state.sql.gz | gunzip > /tmp/new.sql
+diff /tmp/old.sql /tmp/new.sql | less
+----
+
+=== Forcer un snapshot hors-cron
+
+[source,shell]
+----
+/usr/local/sbin/headscale-backup.sh
+----
+
+=== Voir l'état du cron
+
+[source,shell]
+----
+crontab -l -u root | grep headscale-backup
+tail -f /var/log/headscale-backup.log
+----
+
+== Notes de sécurité
+
+* La deploy key SSH du primary a *write* sur le repo : c'est la clé
+  la plus sensible. Elle ne quitte jamais `/root/.ssh/` du primary.
+* Le dump SQL contient le *roster* (utilisateurs, nodes, clés
+  Wireguard publiques, ACL, routes). Pas de credentials sensibles
+  au sens « secret » — les clés Wireguard *publiques* sont par
+  construction publiques. *Mais* la liste des nodes et leurs IP
+  privées sont confidentielles, d'où le repo *privé*.
+* `noise_private.key` et `derp_private.key` côté Headscale (clés
+  serveur) ne sont PAS dans le dump. Elles vivent à
+  `/var/db/headscale/*.key` et sont reposées par la recipe
+  `headscale-server` à l'install. Au failover, le standby a *ses
+  propres* clés serveur, donc les nodes existants doivent
+  re-vérifier le fingerprint au prochain handshake — c'est attendu.

@@ -16,6 +16,39 @@ Versionnage par tags git aligné sur les jalons beryl :
 
 == [Non publié]
 
+=== Ajouté
+
+==== Phase 1a/1b — Headscale auto-hébergé (overlay réseau Aloli)
+
+Trois recettes et un document pour le déploiement Headscale décrit
+dans la roadmap interne `roadmap_beryl_headscale.md`. Architecture :
+1 actif (RBX) + 2 standbys chauds (SBG, GRA), état partagé via dump
+SQL textuel commit toutes les 5 min sur le repo GitHub privé
+`aloli-aloli/headscale-state`.
+
+* `headscale-server` — installe headscale + sqlite3, pose la config
+  (écoute `127.0.0.1:8080`, TLS délégué à un nginx en frontal),
+  ouvre 80/443 en pf, démarre le service. SQLite WAL activé pour
+  permettre des snapshots `.backup` sans bloquer le service.
+* `headscale-backup` — sur le primary : cron 5 min qui fait
+  `sqlite3 .backup` → `.dump` → `gzip` → `git commit + push` vers
+  `aloli-aloli/headscale-state`. Sérialisé via `flock`, garde-fous
+  sur pré-requis absents. Inclut un helper one-shot
+  `headscale-backup-init.sh` pour le clone initial du repo.
+* `headscale-standby` — sur SBG/GRA : installe headscale **mais
+  garde le service éteint** (`service-disable`), pose un cron
+  `git pull` toutes les 5 min, et un script `headscale-promote.sh`
+  pour le failover manuel (restore SQL + activation service + log
+  des étapes opérateur restantes).
+
+==== Documentation
+
+* `doc/headscale-setup.adoc` — procédure pas-à-pas pour le bootstrap
+  (création repo GitHub privé, génération deploy keys ed25519,
+  ajout côté GitHub avec règle write-access primary uniquement,
+  premier clone + premier snapshot, premier `git pull` standby) et
+  procédure failover détaillée (~15-30 min RTO).
+
 === Modifié
 
 ==== Extensions typées

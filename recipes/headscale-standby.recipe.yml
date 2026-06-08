@@ -1,0 +1,196 @@
+recipe: headscale-standby
+description: |
+  Rôle standby chaud d'un nœud Headscale : `tailscaled` n'est pas
+  joint, Headscale lui-même est installé mais DÉSACTIVÉ, et un cron
+  `git pull` rapatrie le dernier dump SQL toutes les 5 minutes. Au
+  failover, l'opérateur lance `headscale-promote.sh` qui restaure le
+  dump et active le service.
+
+  À appliquer sur les nœuds SBG et GRA (les 2 standbys du déploiement
+  Aloli). Le primary (RBX) utilise `headscale-backup` à la place.
+
+  Pré-requis HORS recette (à faire manuellement une fois, cf.
+  `doc/headscale-setup.adoc`) :
+  * Le repo GitHub privé `aloli-aloli/headscale-state` existe.
+  * Une deploy key SSH read-only est posée à
+    `/root/.ssh/id_ed25519_headscale_state` (chmod 0600).
+  * La clé publique est ajoutée côté GitHub (Settings → Deploy keys)
+    SANS `Allow write access` (read-only).
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 1b.
+
+requires:
+  - headscale-server
+
+steps:
+  - pkg-install:
+      packages: [git, gzip]
+
+  # Le standby installe headscale mais le DÉSACTIVE. La recipe
+  # headscale-server appelée en `requires` a `service-enable: headscale`.
+  # On l'éteint immédiatement après.
+  - service-disable:
+      name: headscale
+
+  - file-write:
+      path: /usr/local/sbin/headscale-standby-pull.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recipe headscale-standby). Édition manuelle écrasée.
+        #
+        # Cron 5 min : git pull du repo `aloli-aloli/headscale-state`
+        # pour avoir le dump SQL à jour. Le standby reste prêt à un
+        # restore immédiat via `headscale-promote.sh`.
+
+        set -e
+        set -u
+
+        REPO_DIR=/etc/aloli-headscale-state
+        DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
+        LOCK_FILE=/var/run/headscale-standby-pull.lock
+        UTC_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        [ -d "${REPO_DIR}" ]   || { echo "[pull] ${REPO_DIR} absent — lancer headscale-standby-init.sh" >&2; exit 0; }
+        [ -f "${DEPLOY_KEY}" ] || { echo "[pull] deploy key absente" >&2; exit 0; }
+
+        export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+        exec 9>"${LOCK_FILE}"
+        if ! flock -n 9; then
+          echo "[pull] une autre instance tourne déjà, skip" >&2
+          exit 0
+        fi
+
+        cd "${REPO_DIR}"
+        git pull --quiet --ff-only origin HEAD 2>&1 | grep -vE '^(remote:|From |\* branch|[ \t]*$)' || true
+
+        echo "[pull] OK (${UTC_NOW})"
+
+  - file-write:
+      path: /usr/local/sbin/headscale-standby-init.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Helper one-shot pour l'opérateur : clone initial du repo
+        # de backup côté standby. Read-only (la deploy key locale
+        # n'a pas write).
+        #
+        # Usage :
+        #   1. Générer la deploy key : ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_headscale_state -N ""
+        #   2. Ajouter la clé publique côté GitHub Settings → Deploy keys
+        #      (SANS cocher Allow write access).
+        #   3. Lancer : /usr/local/sbin/headscale-standby-init.sh
+
+        set -e
+        set -u
+
+        REPO_DIR=/etc/aloli-headscale-state
+        DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
+        REPO_URL=git@github.com:aloli-aloli/headscale-state.git
+
+        [ -f "${DEPLOY_KEY}" ] || { echo "[init] deploy key absente : ${DEPLOY_KEY}" >&2; exit 1; }
+
+        export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+        if [ ! -d "${REPO_DIR}/.git" ]; then
+          git clone "${REPO_URL}" "${REPO_DIR}"
+        fi
+        cd "${REPO_DIR}"
+        # Pas de user.email / user.name : un standby ne commit jamais
+        # tant qu'il n'est pas promu. headscale-promote.sh les pose.
+        echo "[init] OK — repo cloné dans ${REPO_DIR} (read-only)"
+
+  - file-write:
+      path: /usr/local/sbin/headscale-promote.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recipe headscale-standby).
+        #
+        # Failover manuel : ce standby devient le nouveau primary.
+        #
+        # ATTENTION — ce script :
+        #   1. arrête le rôle standby (cron pull désactivé pour
+        #      empêcher un écrasement du roster fraîchement restauré),
+        #   2. fait un dernier `git pull` du dump,
+        #   3. restaure le dump dans /var/db/headscale/db.sqlite,
+        #   4. active et démarre le service headscale,
+        #   5. configure git pour pouvoir pusher si la deploy key est
+        #      passée en `Allow write access` côté GitHub.
+        #
+        # Étapes hors-script à faire côté opérateur :
+        #   * basculer la deploy key locale en `Allow write access` côté
+        #     GitHub (la clé existante peut être réutilisée, juste cocher),
+        #   * mettre à jour le DNS `headscale.aloli.net` vers cette IP,
+        #   * basculer le nœud précédemment primary en `headscale-standby`
+        #     (à son retour) pour éviter le split-brain.
+
+        set -e
+        set -u
+
+        REPO_DIR=/etc/aloli-headscale-state
+        DUMP_PATH="${REPO_DIR}/headscale-state.sql.gz"
+        DB_PATH=/var/db/headscale/db.sqlite
+        DB_BACKUP="${DB_PATH}.before-promote.$(date -u +%Y%m%dT%H%M%SZ)"
+        DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
+        HOSTNAME="$(hostname -s)"
+        UTC_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        [ -f "${DEPLOY_KEY}" ] || { echo "[promote] deploy key absente" >&2; exit 1; }
+        [ -d "${REPO_DIR}" ]   || { echo "[promote] ${REPO_DIR} absent — lancer d'abord headscale-standby-init.sh" >&2; exit 1; }
+
+        export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+        # 1. Stopper le cron pull pour ne pas écraser le restore.
+        if crontab -l -u root 2>/dev/null | grep -q headscale-standby-pull; then
+          echo "[promote] désactivation du cron pull"
+          ( crontab -l -u root 2>/dev/null | grep -v headscale-standby-pull ) | crontab -u root -
+        fi
+
+        # 2. Dernier pull pour avoir le dump le plus frais.
+        echo "[promote] git pull final"
+        ( cd "${REPO_DIR}" && git pull --quiet --ff-only origin HEAD )
+
+        # 3. Backup de la DB locale (au cas où) puis restore.
+        if [ -f "${DB_PATH}" ]; then
+          echo "[promote] backup de la DB actuelle vers ${DB_BACKUP}"
+          cp "${DB_PATH}" "${DB_BACKUP}"
+        fi
+
+        echo "[promote] restauration depuis ${DUMP_PATH}"
+        rm -f "${DB_PATH}"
+        gunzip -c "${DUMP_PATH}" | sqlite3 "${DB_PATH}"
+        chown headscale:headscale "${DB_PATH}"
+        chmod 0640 "${DB_PATH}"
+
+        # 4. Activer + démarrer le service.
+        echo "[promote] activation du service headscale"
+        sysrc headscale_enable=YES >/dev/null
+        service headscale start
+
+        # 5. Configurer git pour push (si la deploy key passe en write
+        #    côté GitHub, ces réglages permettent les commits suivants
+        #    de `headscale-backup.sh` après bascule de rôle).
+        ( cd "${REPO_DIR}" && \
+          git config user.email "headscale@aloli.net" && \
+          git config user.name  "headscale-${HOSTNAME}" )
+
+        echo ""
+        echo "[promote] OK (${UTC_NOW}) — ce nœud (${HOSTNAME}) est promu primary."
+        echo ""
+        echo "Étapes restantes côté opérateur :"
+        echo "  1. Côté GitHub : Settings → Deploy keys → cocher Allow write access"
+        echo "                   pour la clé '${HOSTNAME}' du repo headscale-state."
+        echo "  2. Mettre à jour le DNS headscale.aloli.net vers cette IP."
+        echo "  3. Appliquer la recipe 'headscale-backup' sur ce nœud :"
+        echo "     beryl apply --recipe headscale-backup ${HOSTNAME}"
+        echo "     (le cron de backup remplace le cron pull qu'on vient de supprimer)."
+        echo "  4. À la reprise de l'ancien primary, lui appliquer 'headscale-standby'."
+
+  - cron-entry:
+      user: root
+      entry: "*/5 * * * * /usr/local/sbin/headscale-standby-pull.sh >>/var/log/headscale-standby-pull.log 2>&1"
