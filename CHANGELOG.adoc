@@ -18,6 +18,20 @@ Versionnage par tags git aligné sur les jalons beryl :
 
 === Ajouté
 
+==== Recettes Aloli courantes
+
+Composent les primitives livrées côté beryl (Phase 2 du moteur) :
+
+* `ssh-hardening` — durcit sshd (PermitRootLogin prohibit-password,
+  PasswordAuthentication no, KbdInteractive/EmptyPasswords/X11 no).
+* `firewall-pf` — pf minimal et sûr (SSH autorisé, reste bloqué) ;
+  opt-in, possède `/etc/pf.conf` (à ne pas combiner avec pf-rule).
+* `ruby` — Ruby + Bundler.
+* `nginx` — nginx + activation du service.
+* `letsencrypt` — certbot + cron de renouvellement.
+* `web-server` — agrégat (ruby + nginx + letsencrypt).
+* `post-install` enrichi : ajoute `ssh-hardening` au socle.
+
 ==== Phase 1 — premières recettes (PoC)
 
 * `base-packages` — packages de base (bash, git, curl) via

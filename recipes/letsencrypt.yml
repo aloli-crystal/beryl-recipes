@@ -1,0 +1,12 @@
+recipe: letsencrypt
+description: Installe certbot et pose le cron de renouvellement des certificats.
+requires:
+  - base-packages
+steps:
+  - pkg-install:
+      packages: [py311-certbot]
+  # Renouvellement deux fois par jour (recommandation certbot) ;
+  # --quiet pour ne notifier que sur erreur.
+  - cron-entry:
+      user: root
+      entry: "0 0,12 * * * /usr/local/bin/certbot renew --quiet"

@@ -1,0 +1,9 @@
+recipe: nginx
+description: Installe et active nginx.
+requires:
+  - base-packages
+steps:
+  - pkg-install:
+      packages: [nginx]
+  - service-enable:
+      name: nginx

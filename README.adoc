@@ -19,22 +19,22 @@ beryl. Les recettes vivent ici, versionnées, forkables.
 
 [IMPORTANT]
 ====
-*Phase 1 — PoC.* Les premières recettes sont livrées
-(`base-packages`, `shell-tools`, `freebsd-updates`, et l'agrégat
-`post-install`). Elles n'utilisent encore que la primitive
-`pkg-install` ; les autres primitives (et donc les recettes plus
-riches) arrivent en Phase 2.
+*Recettes Aloli courantes livrées.* Le jeu complet des primitives
+existe désormais côté beryl ; les recettes ci-dessous les composent.
+Format YAML *pas encore figé* tant que le tag `v1.0.0` n'est pas posé.
 
 La feuille de route détaillée se trouve dans
 https://github.com/aloli-crystal/beryl/blob/production/apply-recipes-architecture.adoc[`apply-recipes-architecture.adoc`]
 côté beryl.
 
-* *Phase 1* (PoC, en cours) : `base-packages`, `shell-tools`,
-  `freebsd-updates`, et l'agrégat `post-install` minimal.
-* *Phase 2* : couverture des recettes Aloli courantes (`ohmyzsh`,
-  `ssh-hardening`, `firewall-pf`, `ruby`, `nginx-passenger`,
-  `nginx-hardening`, `letsencrypt`).
-* *Phase 3* : tag `v1.0.0` quand le tronc commun est rodé.
+* *Socle* : `base-packages`, `shell-tools`, `freebsd-updates`.
+* *Durcissement* : `ssh-hardening`, `firewall-pf` (opt-in, possède
+  `/etc/pf.conf`).
+* *Applicatif* : `ruby`, `nginx`, `letsencrypt`.
+* *Agrégats* : `post-install` (socle + ssh-hardening),
+  `web-server` (ruby + nginx + letsencrypt).
+* *À venir* : tests d'intégration FreeBSD en QEMU, puis tag `v1.0.0`
+  quand le tronc commun est rodé.
 ====
 
 == Vue d'ensemble

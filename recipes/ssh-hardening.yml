@@ -1,0 +1,20 @@
+recipe: ssh-hardening
+description: Durcit la configuration sshd (clés uniquement, pas de mot de passe).
+# PermitRootLogin prohibit-password : root reste joignable PAR CLÉ
+# (beryl se connecte souvent en root), mais jamais par mot de passe.
+steps:
+  - sshd-config-set:
+      key: PermitRootLogin
+      value: prohibit-password
+  - sshd-config-set:
+      key: PasswordAuthentication
+      value: "no"
+  - sshd-config-set:
+      key: KbdInteractiveAuthentication
+      value: "no"
+  - sshd-config-set:
+      key: PermitEmptyPasswords
+      value: "no"
+  - sshd-config-set:
+      key: X11Forwarding
+      value: "no"

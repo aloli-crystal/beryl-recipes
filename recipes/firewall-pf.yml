@@ -1,0 +1,22 @@
+recipe: firewall-pf
+description: Pare-feu pf minimal et sûr (SSH autorisé, reste bloqué en entrée).
+# Cette recette possède /etc/pf.conf en entier (file-write). Ne la
+# combinez pas avec la primitive pf-rule sur le même host : pf-rule
+# gère un bloc à l'intérieur de pf.conf, qui serait écrasé au prochain
+# apply. Pour des règles ad-hoc, dérivez une copie locale de cette
+# recette.
+steps:
+  - file-write:
+      path: /etc/pf.conf
+      mode: "0644"
+      owner: root:wheel
+      content: |
+        # Géré par beryl (recette firewall-pf). Édition manuelle écrasée.
+        set skip on lo0
+        scrub in all
+        block in all
+        pass out all keep state
+        pass in quick proto tcp to port { 22 } keep state
+        pass inet proto icmp icmp-type echoreq
+  - service-enable:
+      name: pf

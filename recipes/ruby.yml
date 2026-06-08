@@ -1,0 +1,7 @@
+recipe: ruby
+description: Installe Ruby et Bundler (socle applicatif Rails/Marten Ruby).
+requires:
+  - base-packages
+steps:
+  - pkg-install:
+      packages: [ruby, rubygem-bundler]

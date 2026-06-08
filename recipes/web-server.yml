@@ -1,0 +1,8 @@
+recipe: web-server
+description: Pile serveur web Aloli (Ruby + nginx + certbot).
+requires:
+  - ruby
+  - nginx
+  - letsencrypt
+# Pas de steps : agrégat. Le pare-feu (firewall-pf) est volontairement
+# laissé en opt-in explicite — il prend la main sur /etc/pf.conf.
