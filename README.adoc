@@ -54,8 +54,8 @@ topologique. Chaque recette appliquée est *idempotente* : relancer
 
 [source,yaml]
 ----
-# recipes/<nom>.yml
-recipe: <nom>                     # doit correspondre au nom du fichier
+# recipes/<nom>.recipe.yml
+recipe: <nom>                     # facultatif (dérivé du nom de fichier)
 description: Une phrase courte qui dit ce que fait la recette
 
 requires:                         # autres recettes à exécuter avant (facultatif)
@@ -99,7 +99,7 @@ pas de mot-clé spécial. Une recette est une recette.
 
 [source,yaml]
 ----
-# recipes/post-install.yml
+# recipes/post-install.recipe.yml
 recipe: post-install
 description: Post-install Aloli standard pour FreeBSD
 requires:
@@ -120,11 +120,11 @@ requires:
 | Aspect | Convention
 
 | Nommage de fichier
-| `<nom>.yml` en kebab-case minuscule (ex: `nginx-passenger.yml`,
-  pas `NginxPassenger.yml` ni `nginx_passenger.yml`).
+| `<nom>.recipe.yml` en kebab-case minuscule (ex: `nginx-passenger.recipe.yml`,
+  pas `NginxPassenger.recipe.yml` ni `nginx_passenger.recipe.yml`).
 
 | Nommage du recipe
-| Doit être *strictement identique* au nom du fichier sans `.yml`.
+| Facultatif : le nom est dérivé du fichier (sans `.recipe.yml`) ; si présent, doit correspondre.
   beryl le vérifie au chargement.
 
 | Ordre des champs
@@ -155,8 +155,8 @@ créez une copie locale dans le dossier du host :
 [source,sh]
 ----
 cd ~/.config/beryl/<société>/<domaine>/<host>
-cp ../../../recipes/recipes/ohmyzsh.yml ./ohmyzsh.yml
-vim ohmyzsh.yml                  # adaptez librement
+cp ../../../recipes/recipes/ohmyzsh.recipe.yml ./ohmyzsh.recipe.yml
+vim ohmyzsh.recipe.yml                  # adaptez librement
 ----
 
 beryl prend la copie locale en priorité. Pas besoin de fork.
@@ -195,7 +195,7 @@ recipes:
 
 . Forkez ce dépôt
 . Créez une branche `feat/<nom-recette>` depuis `production`
-. Ajoutez votre recette dans `recipes/<nom>.yml`
+. Ajoutez votre recette dans `recipes/<nom>.recipe.yml`
 . Si la recette mérite un test, ajoutez-le dans `tests/`
 . Ouvrez une *Pull Request* vers `production` avec :
 +
@@ -229,7 +229,7 @@ beryl-recipes/
 ├── CHANGELOG.adoc               # une entrée par recette ajoutée/modifiée
 ├── recipes/                     # toutes les recettes (vide en phase 0)
 │   ├── .gitkeep
-│   └── <nom>.yml                # à venir
+│   └── <nom>.recipe.yml         # une recette
 └── tests/                       # tests d'intégration (vide en phase 0)
     └── .gitkeep
 ----

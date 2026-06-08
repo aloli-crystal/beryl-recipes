@@ -16,6 +16,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 
 == [Non publié]
 
+=== Modifié
+
+==== Extensions typées
+
+* Les recettes sont renommées `<nom>.recipe.yml` (au lieu de
+  `<nom>.yml`). Le type est désormais explicite dans le nom, en
+  cohérence avec la config beryl (`.host.yml` / `.domain.yml` /
+  `.group.yml`). Voir beryl
+  `docs/adr/ADR-015-typed-config-extensions.adoc`. Le champ `recipe:`
+  devient facultatif (le nom est dérivé du fichier).
+
 === Ajouté
 
 ==== Recettes Aloli courantes
