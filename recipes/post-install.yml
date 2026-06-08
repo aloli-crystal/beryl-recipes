@@ -1,0 +1,8 @@
+recipe: post-install
+description: Post-install Aloli minimal pour FreeBSD (recette agrégat).
+requires:
+  - freebsd-updates
+  - base-packages
+  - shell-tools
+# Pas de steps : tout est dans les requires. beryl résout l'ordre
+# topologique (base-packages avant shell-tools, etc.) et applique.

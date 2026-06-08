@@ -1,0 +1,7 @@
+recipe: shell-tools
+description: Outils de confort en ligne de commande (shell interactif).
+requires:
+  - base-packages
+steps:
+  - pkg-install:
+      packages: [zsh, tmux]

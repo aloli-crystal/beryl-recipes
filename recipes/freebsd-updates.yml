@@ -1,0 +1,11 @@
+recipe: freebsd-updates
+description: Prérequis aux mises à jour FreeBSD (cron de check en Phase 2).
+steps:
+  # ca_root_nss fournit le bundle d'autorités de certification utilisé
+  # par freebsd-update/pkg pour valider les téléchargements HTTPS.
+  - pkg-install:
+      packages: [ca_root_nss]
+  # Phase 2 — quand la primitive `cron-entry` existera, cette recette
+  # posera aussi un cron quotidien `freebsd-update cron` qui notifie
+  # par mail si des patches sont disponibles (cf.
+  # apply-recipes-architecture.adoc, recette `freebsd-updates` cible).

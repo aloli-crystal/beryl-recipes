@@ -6,10 +6,10 @@
 
 [.lead]
 Recettes officielles Aloli pour
-https://github.com/aloli-crystal/crystal-beryl[beryl] —
+https://github.com/aloli-crystal/beryl[beryl] —
 le provisionneur Crystal pour serveurs FreeBSD bare-metal.
 
-NOTE: Ce dépôt est complémentaire à crystal-beryl. Il contient les
+NOTE: Ce dépôt est complémentaire à beryl. Il contient les
 *recettes YAML* qui déclarent l'état désiré d'un serveur FreeBSD :
 packages, services, users, configuration sshd, firewall, etc.
 La logique d'exécution (les *primitives*) vit dans le binaire
@@ -19,16 +19,18 @@ beryl. Les recettes vivent ici, versionnées, forkables.
 
 [IMPORTANT]
 ====
-*Phase 0 — préparation.* Le dépôt est volontairement vide en
-contenu. La structure est posée, le format des recettes est
-spécifié, mais aucune recette n'est encore livrée.
+*Phase 1 — PoC.* Les premières recettes sont livrées
+(`base-packages`, `shell-tools`, `freebsd-updates`, et l'agrégat
+`post-install`). Elles n'utilisent encore que la primitive
+`pkg-install` ; les autres primitives (et donc les recettes plus
+riches) arrivent en Phase 2.
 
 La feuille de route détaillée se trouve dans
-https://github.com/aloli-crystal/crystal-beryl/blob/production/apply-recipes-architecture.adoc[`apply-recipes-architecture.adoc`]
-côté crystal-beryl.
+https://github.com/aloli-crystal/beryl/blob/production/apply-recipes-architecture.adoc[`apply-recipes-architecture.adoc`]
+côté beryl.
 
-* *Phase 1* (PoC) : 2 ou 3 recettes (`freebsd-updates`, une recette
-  agrégat `post-install` minimale).
+* *Phase 1* (PoC, en cours) : `base-packages`, `shell-tools`,
+  `freebsd-updates`, et l'agrégat `post-install` minimal.
 * *Phase 2* : couverture des recettes Aloli courantes (`ohmyzsh`,
   `ssh-hardening`, `firewall-pf`, `ruby`, `nginx-passenger`,
   `nginx-hardening`, `letsencrypt`).
@@ -40,9 +42,9 @@ côté crystal-beryl.
 beryl orchestre les recettes via la commande `beryl apply <host>`.
 Les recettes sont lues depuis :
 
-. *Le dossier d'orchestration du host* : `~/.beryl/<société>/<domaine>/<host>/`
-. *Les taps additionnels* : `~/.beryl/recipes-taps/<nom>/recipes/`
-. *Le dépôt principal* (ce dépôt-ci) : `~/.beryl/recipes/recipes/`
+. *Le dossier d'orchestration du host* : `~/.config/beryl/<société>/<domaine>/<host>/`
+. *Les taps additionnels* : `~/.config/beryl/recipes-taps/<nom>/recipes/`
+. *Le dépôt principal* (ce dépôt-ci) : `~/.config/beryl/recipes/recipes/`
 
 Beryl résout les `requires:` récursivement et applique le tri
 topologique. Chaque recette appliquée est *idempotente* : relancer
@@ -152,7 +154,7 @@ créez une copie locale dans le dossier du host :
 
 [source,sh]
 ----
-cd ~/.beryl/<société>/<domaine>/<host>
+cd ~/.config/beryl/<société>/<domaine>/<host>
 cp ../../../recipes/recipes/ohmyzsh.yml ./ohmyzsh.yml
 vim ohmyzsh.yml                  # adaptez librement
 ----
@@ -169,11 +171,11 @@ créez un dépôt git séparé et déclarez-le comme tap :
 beryl recipes-tap add https://github.com/<vous>/private-recipes.git
 ----
 
-beryl clone dans `~/.beryl/recipes-taps/private-recipes/` et le
+beryl clone dans `~/.config/beryl/recipes-taps/private-recipes/` et le
 résout avec priorité plus haute que le dépôt principal.
 
 NOTE: Le mécanisme `recipes-tap` est en cours de design. Voir
-crystal-beryl `apply-recipes-architecture.adoc` section
+beryl `apply-recipes-architecture.adoc` section
 « Questions ouvertes ».
 
 === 3. Fork du dépôt principal (cas extrême)
@@ -183,7 +185,7 @@ dépôt et pointez beryl vers votre fork :
 
 [source,yaml]
 ----
-# ~/.beryl/_default.yml
+# ~/.config/beryl/_default.yml
 recipes:
   repo_url: https://github.com/<vous>/beryl-recipes.git
   branch: production
@@ -241,7 +243,7 @@ MIT © ALOLI sas. Voir link:LICENSE[LICENSE].
 
 == Liens
 
-* https://github.com/aloli-crystal/crystal-beryl[crystal-beryl] —
+* https://github.com/aloli-crystal/beryl[beryl] —
   le binaire qui exécute ces recettes
-* https://github.com/aloli-crystal/crystal-beryl/blob/production/apply-recipes-architecture.adoc[apply-recipes-architecture.adoc] —
+* https://github.com/aloli-crystal/beryl/blob/production/apply-recipes-architecture.adoc[apply-recipes-architecture.adoc] —
   document de design détaillé pour `beryl apply`

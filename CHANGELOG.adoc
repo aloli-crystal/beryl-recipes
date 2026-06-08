@@ -16,6 +16,26 @@ Versionnage par tags git aligné sur les jalons beryl :
 
 == [Non publié]
 
+=== Ajouté
+
+==== Phase 1 — premières recettes (PoC)
+
+* `base-packages` — packages de base (bash, git, curl) via
+  `pkg-install`.
+* `shell-tools` — zsh + tmux, `requires: [base-packages]`.
+* `freebsd-updates` — installe `ca_root_nss` (prérequis HTTPS) ;
+  le cron quotidien de check arrivera en Phase 2 avec la primitive
+  `cron-entry`.
+* `post-install` — recette agrégat minimale
+  (`requires: [freebsd-updates, base-packages, shell-tools]`),
+  prouve la résolution transitive + le tri topologique côté beryl.
+
+==== Documentation
+
+* README : statut passé en Phase 1 (PoC) ; chemins corrigés de
+  `~/.beryl/` vers `~/.config/beryl/` (beryl suit désormais la spec
+  XDG Base Directory).
+
 == 0.0.0 (25 avril 2026)
 
 === Ajouté
@@ -34,7 +54,7 @@ Versionnage par tags git aligné sur les jalons beryl :
   approches pour adapter / forker (override par dossier host,
   tap additionnel, fork complet).
 * Lien vers le document de design
-  `apply-recipes-architecture.adoc` côté crystal-beryl.
+  `apply-recipes-architecture.adoc` côté beryl.
 
 === Pas encore livré
 
