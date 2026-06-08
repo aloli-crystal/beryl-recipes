@@ -240,6 +240,81 @@ crontab -l -u root | grep headscale-backup
 tail -f /var/log/headscale-backup.log
 ----
 
+== Workflows CI : ephemeral nodes
+
+Les déploiements *automatisés* (GitHub Actions, GitLab CI, etc.) ne
+devraient *jamais* faire ouvrir le port 22 public. À la place, le
+runner CI rejoint temporairement le mesh Headscale via un *ephemeral
+node* — node automatiquement purgé du roster à la fin du job.
+
+=== Côté Headscale : pré-auth key reusable + ephemeral
+
+Une fois, sur le primary :
+
+[source,shell]
+----
+headscale preauthkeys create \
+  --user beryl-ci \
+  --reusable \
+  --ephemeral \
+  --expiration 8760h
+# → Affiche la clé : "abc123..."
+----
+
+[NOTE]
+====
+* `--reusable` : la même clé peut servir à des centaines de jobs.
+* `--ephemeral` : chaque node créé sera auto-purgé à la déconnexion
+  (~quelques minutes après la fin du job).
+* `--expiration 8760h` : 1 an. À renouveler annuellement.
+====
+
+Stocker la clé dans les *GitHub Secrets* de l'organisation
+`aloli-aloli` sous le nom `HEADSCALE_EPHEMERAL_AUTHKEY`.
+
+=== Côté workflow GitHub Actions
+
+Ajouter ces deux steps avant le step de deploy :
+
+[source,yaml]
+----
+- name: Join Headscale mesh (ephemeral)
+  run: |
+    curl -fsSL https://tailscale.com/install.sh | sh
+    sudo tailscale up \
+      --login-server=https://headscale.aloli.net \
+      --authkey=${{ secrets.HEADSCALE_EPHEMERAL_AUTHKEY }} \
+      --ephemeral
+    sudo tailscale ip -4   # debug : log l'IP attribuée
+
+- name: Deploy
+  run: |
+    # Le serveur cible est joignable via son IP overlay 100.64.x.y,
+    # OU via son FQDN s'il a un magic-DNS Headscale configuré.
+    ssh deploy@loulou 'sudo /usr/local/sbin/deploy.sh'
+----
+
+À la fin du job, la VM GitHub Actions est détruite ; quelques
+minutes plus tard, Headscale purge automatiquement le node éphémère.
+`git log` du repo `aloli-aloli/headscale-state` capture l'ajout
+(commit où apparaît le node) et la purge (commit où il disparaît) —
+audit naturel sans pollution durable.
+
+=== Quand utiliser ephemeral vs sshd-public-open
+
+[options="header"]
+|===
+| Critère                          | Ephemeral CI         | sshd-public-open
+| Déploiement automatisé (CI)      | ✅ recommandé        | éviter
+| Déploiement manuel (Capistrano)  | possible mais lourd  | ✅ recommandé
+| Intervention d'urgence externe   | non                  | ✅
+| Trace dans l'audit               | join/purge node      | commit `audit.log`
+| Fenêtre d'exposition publique    | aucune               | 1 h max (auto-close)
+| Risque oubli de fermeture        | aucun                | très faible (auto-close)
+| Setup côté serveur cible         | rien à faire         | recette à appliquer
+| Setup côté agent CI/dev          | tailscale install    | rien
+|===
+
 == Notes de sécurité
 
 * La deploy key SSH du primary a *write* sur le repo : c'est la clé

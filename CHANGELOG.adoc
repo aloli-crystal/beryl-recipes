@@ -18,6 +18,49 @@ Versionnage par tags git aligné sur les jalons beryl :
 
 === Ajouté
 
+==== Phase 2 → 4 — Mesh Headscale, toggle port 22, hooks Capistrano
+
+Suite directe des Phases 1a/1b ci-dessous : on dispose désormais du
+parc Headscale prêt côté serveur, on enrôle les hosts dans le mesh,
+on bascule sshd en overlay-only, et on prévoit un toggle d'urgence
+pour les déploiements Capistrano legacy. Le tout exploite les 5
+primitives ajoutées dans beryl v0.4.0.
+
+* `headscale-node` (Phase 2) — joint un host au mesh.
+  pkg-install tailscale, service-enable tailscaled, headscale-join
+  (qui lit `HEADSCALE_AUTHKEY` posée par EnvFile depuis le coffre
+  `secrets` de la société).
+* `sshd-overlay-only` (Phase 3a) — bascule sshd en écoute uniquement
+  sur l'IP tailscale du host. assert-tailscale-up en pré-check,
+  ListenAddress résolu via `value_from_command: "tailscale ip -4"`,
+  pf-rule block 22 public en défense en profondeur. À tester sur
+  un host non-critique avant déploiement en série.
+* `sshd-public-open` (Phase 3b) — ouvre TEMPORAIREMENT le port 22
+  public. assert-env-var BERYL_REASON obligatoire,
+  auto-close-schedule à 1 h, et chaque ouverture commit une ligne
+  d'audit dans aloli-aloli/headscale-state via
+  headscale-state-commit.
+* `sshd-public-close` (Phase 3b) — referme le port 22 public,
+  repasse en overlay-only. Idempotent. Appelée manuellement par
+  Capistrano ou automatiquement par le job at posé en ouverture.
+
+==== Documentation (Phase 2bis + Phase 3c)
+
+* `doc/headscale-setup.adoc` § Workflows CI : ephemeral nodes —
+  pattern recommandé pour les déploiements automatisés (GitHub
+  Actions, GitLab CI...) : le runner devient un node Headscale
+  temporaire, auto-purgé à la fin du job, port 22 jamais ouvert
+  public. Inclut le pattern de pre-auth key reusable + ephemeral
+  + le snippet workflow GitHub Actions de référence.
+* `doc/headscale-setup.adoc` § ephemeral vs sshd-public-open —
+  tableau de décision pour choisir entre les deux mécanismes.
+* `doc/capistrano-ssh-window.rake` — fichier prêt à copier dans
+  `lib/capistrano/tasks/` de l'app Rails legacy. Hooks
+  `before deploy:starting → aloli:ssh_open` et
+  `after deploy:finished/failed → aloli:ssh_close`. Detection
+  préalable du port 22 (skip si déjà ouvert), boucle d'attente
+  jusqu'à 60 s pour la propagation pf, raise sur timeout.
+
 ==== Phase 1a/1b — Headscale auto-hébergé (overlay réseau Aloli)
 
 Trois recettes et un document pour le déploiement Headscale décrit

@@ -1,0 +1,59 @@
+recipe: sshd-public-open
+description: |
+  Ouvre TEMPORAIREMENT le port 22 sur les interfaces publiques. Auto-fermée
+  après 1 h via `at`, sauf appel explicite à `sshd-public-close`. Toute
+  ouverture commit une ligne d'audit dans `aloli-aloli/headscale-state`.
+
+  Use case principal :
+  * Déploiement Capistrano d'une application Ruby/Rails legacy depuis le
+    poste opérateur (qui n'a pas forcément le mesh Headscale up).
+  * Intervention manuelle d'urgence si le mesh Headscale est down.
+
+  Use case NON couvert ici (préférer ephemeral nodes pour cela) :
+  déploiement automatisé via CI (GitHub Actions, GitLab CI...) — voir
+  `doc/headscale-setup.adoc` §CI.
+
+  Pré-requis :
+  * `BERYL_REASON='raison courte'` doit être posée dans l'env de la
+    commande `beryl apply`. La raison apparaît dans l'audit committé.
+  * Le repo `aloli-aloli/headscale-state` doit être cloné sur ce host
+    (cf. recipe `headscale-backup` + `headscale-backup-init.sh`).
+  * Le binaire `beryl` doit être installé côté host (pour que le job
+    `at` d'auto-close puisse s'exécuter).
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3b.
+
+requires:
+  - headscale-node
+
+steps:
+  - assert-env-var:
+      name: BERYL_REASON
+      message: "Refusé : BERYL_REASON='raison courte (ex. capistrano deploy)' obligatoire avant d'ouvrir le port 22 public."
+
+  # Sauvegarde de la conf actuelle pour pouvoir revenir en arrière.
+  - file-write:
+      path: /etc/ssh/sshd_config.d/beryl.conf.before-public-open
+      mode: "0644"
+      content: |
+        # Snapshot avant `sshd-public-open` — utilisé par sshd-public-close
+        # pour restaurer l'état overlay-only. Ne pas éditer à la main.
+        # (le contenu réel est copié par le script de bascule)
+
+  # On retire la directive `ListenAddress` (ce qui fait sshd écouter
+  # par défaut sur 0.0.0.0 + ::) plutôt que d'écrire une multi-valeur :
+  # ce sera repris à sa valeur overlay au prochain `sshd-public-close`.
+  - sshd-config-set:
+      key: ListenAddress
+      value: "0.0.0.0"
+
+  - pf-rule:
+      rule: "pass in quick proto tcp to port 22 keep state  # temp public-open"
+
+  - auto-close-schedule:
+      tag: sshd-public-window
+      after_hours: 1
+      recipe: sshd-public-close
+
+  - headscale-state-commit:
+      message: "PORT 22 PUBLIC OPEN host=$(hostname -f) operateur=$USER raison=${BERYL_REASON:-?} expire=+1h"

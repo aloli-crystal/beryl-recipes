@@ -1,0 +1,26 @@
+recipe: sshd-public-close
+description: |
+  Referme le port 22 public, repasse en overlay-only (sshd écoute
+  uniquement sur tailscale0). Idempotente : safe à rejouer.
+
+  Appelée :
+  * manuellement par l'opérateur après un déploiement,
+  * automatiquement par le job `at` posé par `sshd-public-open`
+    (auto-fermeture à 1 h).
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3b.
+
+requires:
+  - headscale-node
+
+steps:
+  - sshd-config-set:
+      key: ListenAddress
+      value_from_command: "tailscale ip -4"
+
+  - pf-rule:
+      state: absent
+      rule: "pass in quick proto tcp to port 22 keep state  # temp public-open"
+
+  - headscale-state-commit:
+      message: "PORT 22 PUBLIC CLOSE host=$(hostname -f) operateur=${USER:-cron-at}"

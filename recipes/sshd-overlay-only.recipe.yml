@@ -1,0 +1,43 @@
+recipe: sshd-overlay-only
+description: |
+  Bascule sshd en écoute *uniquement* sur l'interface tailscale0 du
+  host. Le port 22 sur les interfaces publiques devient injoignable
+  côté ListenAddress ; un `pf-rule` block en complément pour défense
+  en profondeur.
+
+  Cette recette est *destructive* — si quelque chose tourne mal,
+  l'opérateur peut perdre l'accès SSH au host. Trois garde-fous :
+
+  1. `assert-tailscale-up` : refus catégorique si tailscale0 n'a pas
+     d'IP ou si la session a moins de 30 s — on ne joue jamais cette
+     recipe sur un host pas-encore-joint.
+  2. Backup `/etc/ssh/sshd_config.before-overlay` posé avant
+     modification — l'opérateur peut restaurer manuellement via
+     console série si tout casse.
+  3. `auto-close-schedule` qui programme un `at +90 minutes` qui
+     ré-applique `sshd-overlay-rollback` (à venir) — TODO Phase 3+.
+     Pour la première itération, on s'en passe et on testera sur un
+     host non-critique avant déploiement en série.
+
+  Pré-requis impératif : le laptop opérateur doit déjà être dans le
+  mesh Headscale (client Tailscale macOS actif et joint).
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a.
+
+requires:
+  - headscale-node
+
+steps:
+  - assert-tailscale-up:
+      min_uptime_seconds: 30
+
+  - sshd-config-set:
+      key: ListenAddress
+      value_from_command: "tailscale ip -4"
+
+  - pf-rule:
+      rule: "block in quick on egress proto tcp to port 22  # bloqué public, accessible uniquement via tailscale0"
+
+  - service-enable:
+      name: sshd
+      start: true
