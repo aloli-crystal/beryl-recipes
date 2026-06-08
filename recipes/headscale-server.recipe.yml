@@ -1,0 +1,97 @@
+recipe: headscale-server
+description: |
+  Installe et configure Headscale (serveur de coordination Tailscale
+  auto-hébergé). Pose une config minimale en HTTP sur 127.0.0.1:8080,
+  prévue pour être placée derrière un reverse-proxy TLS (nginx +
+  letsencrypt). Le service Headscale écoute *uniquement* sur localhost ;
+  il appartient au nginx de présenter HTTPS sur l'IP publique.
+
+  Cette recette ne gère pas :
+  * Le TLS / Let's Encrypt — utiliser la recipe `nginx-headscale`
+    (à écrire) ou composer avec `nginx` + `letsencrypt` existants.
+  * Le backup de l'état SQLite — utiliser `headscale-backup`.
+  * Le rôle standby (clone en lecture seule) — utiliser
+    `headscale-standby`.
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 1a.
+
+requires:
+  - base-packages
+
+steps:
+  - pkg-install:
+      packages: [headscale, git, sqlite3]
+
+  # Le port FreeBSD `net/headscale` crée déjà l'user et les
+  # répertoires `/var/db/headscale` + `/var/run/headscale` à
+  # l'installation. On ne duplique pas. Si pkg install change ce
+  # comportement à l'avenir, ajouter un `user-create` + un script
+  # init explicite ici.
+
+  - file-write:
+      path: /usr/local/etc/headscale/config.yaml
+      mode: "0640"
+      owner: "root:headscale"
+      content: |
+        # Géré par beryl (recipe headscale-server). Édition manuelle écrasée.
+        # Documentation : https://headscale.net/stable/ref/configuration/
+
+        server_url: https://headscale.aloli.net
+        listen_addr: 127.0.0.1:8080
+        metrics_listen_addr: 127.0.0.1:9090
+
+        grpc_listen_addr: 127.0.0.1:50443
+        grpc_allow_insecure: false
+
+        # Préfixes IP attribués aux nodes du mesh (CGNAT par défaut Tailscale).
+        prefixes:
+          v4: 100.64.0.0/10
+          v6: fd7a:115c:a1e0::/48
+          allocation: sequential
+
+        noise:
+          private_key_path: /var/db/headscale/noise_private.key
+
+        derp:
+          server:
+            enabled: false
+          urls:
+            - https://controlplane.tailscale.com/derpmap/default
+          paths: []
+          auto_update_enabled: true
+          update_frequency: 24h
+
+        database:
+          type: sqlite
+          sqlite:
+            path: /var/db/headscale/db.sqlite
+            write_ahead_log: true
+
+        log:
+          level: info
+          format: text
+
+        dns:
+          override_local_dns: false
+          nameservers:
+            global:
+              - 1.1.1.1
+              - 8.8.8.8
+          base_domain: mesh.aloli.net
+          magic_dns: true
+
+        policy:
+          mode: file
+          path: ""
+
+        unix_socket: /var/run/headscale/headscale.sock
+        unix_socket_permission: "0770"
+
+  - pf-rule:
+      rule: "pass in quick proto tcp to port 80 keep state  # headscale (ACME challenge via nginx)"
+
+  - pf-rule:
+      rule: "pass in quick proto tcp to port 443 keep state # headscale (HTTPS via nginx)"
+
+  - service-enable:
+      name: headscale

@@ -1,0 +1,128 @@
+recipe: headscale-backup
+description: |
+  Backup atomique de la SQLite Headscale toutes les 5 minutes, dump
+  textuel compressé puis commit + push vers le repo GitHub privé
+  `aloli-aloli/headscale-state`. RPO 5 min, RTO 15-30 min (failover
+  manuel par restauration sur un standby).
+
+  Pré-requis HORS recette (à faire manuellement une fois) :
+  * Le repo GitHub privé `aloli-aloli/headscale-state` existe.
+  * Une deploy key SSH (read+write) est posée à
+    `/root/.ssh/id_ed25519_headscale_state` (chmod 0600).
+  * Le repo est cloné dans `/etc/aloli-headscale-state/`.
+  * `git config --global user.email "headscale@aloli.net"` &
+    `user.name "headscale-${HOSTNAME}"`.
+
+  Pourquoi un dump SQL textuel plutôt qu'un .db binaire ?
+  * Diff git lisible : chaque commit montre exactement ce qui a
+    changé dans le roster (nouveau join, ACL modifiée...).
+  * Pas de gonflement du repo : la compression delta de git sur du
+    texte est efficace ; un dump SQL gzippé fait quelques KB.
+  * Audit naturel : `git log --oneline` donne la chronologie des
+    changements du control plane.
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 1a.
+
+requires:
+  - headscale-server
+
+steps:
+  - pkg-install:
+      packages: [git, gzip]
+
+  - file-write:
+      path: /usr/local/sbin/headscale-backup.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recipe headscale-backup). Édition manuelle écrasée.
+        #
+        # Snapshot atomique du SQLite Headscale → dump SQL → gzip →
+        # commit + push vers aloli-aloli/headscale-state.
+        # Sérialisé via flock pour empêcher deux instances concurrentes.
+
+        set -e
+        set -u
+
+        REPO_DIR=/etc/aloli-headscale-state
+        DB_PATH=/var/db/headscale/db.sqlite
+        SNAP_PATH=/tmp/headscale-snap.db
+        DUMP_PATH="${REPO_DIR}/headscale-state.sql.gz"
+        DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
+        LOCK_FILE=/var/run/headscale-backup.lock
+        HOSTNAME="$(hostname -s)"
+        UTC_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+        # Garde-fous : exit silencieux si pré-requis hors recette absents.
+        [ -d "${REPO_DIR}" ]   || { echo "[backup] ${REPO_DIR} absent" >&2; exit 0; }
+        [ -f "${DB_PATH}" ]    || { echo "[backup] ${DB_PATH} absent" >&2; exit 0; }
+        [ -f "${DEPLOY_KEY}" ] || { echo "[backup] deploy key absente" >&2; exit 0; }
+
+        export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+        # Une seule instance à la fois (flock conserve son exit code).
+        exec 9>"${LOCK_FILE}"
+        if ! flock -n 9; then
+          echo "[backup] une autre instance tourne déjà, skip" >&2
+          exit 0
+        fi
+
+        # 1. Snapshot atomique via .backup (pas de risque mid-write).
+        sqlite3 "${DB_PATH}" ".backup '${SNAP_PATH}'"
+
+        # 2. Dump SQL textuel + compression.
+        sqlite3 "${SNAP_PATH}" ".dump" | gzip -9 > "${DUMP_PATH}.tmp"
+        mv "${DUMP_PATH}.tmp" "${DUMP_PATH}"
+        rm -f "${SNAP_PATH}"
+
+        # 3. Commit + push si changement.
+        cd "${REPO_DIR}"
+        if [ -z "$(git status --porcelain "${DUMP_PATH}")" ]; then
+          echo "[backup] rien à committer (${UTC_NOW})"
+          exit 0
+        fi
+        git add "${DUMP_PATH}"
+        git commit --quiet -m "snapshot ${HOSTNAME} ${UTC_NOW}"
+        git push --quiet origin HEAD 2>&1 | grep -vE '^(remote:|To |[ \t]*$)' || true
+
+        echo "[backup] OK (${UTC_NOW})"
+
+  - file-write:
+      path: /usr/local/sbin/headscale-backup-init.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Helper one-shot pour l'opérateur : clone initial du repo
+        # de backup et configuration git. NE FAIT PAS de backup.
+        #
+        # Usage :
+        #   1. Générer la deploy key : ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_headscale_state -N ""
+        #   2. Ajouter la clé publique (~/.ssh/id_ed25519_headscale_state.pub) côté GitHub
+        #      au repo aloli-aloli/headscale-state (Settings → Deploy keys → write).
+        #   3. Lancer : /usr/local/sbin/headscale-backup-init.sh
+
+        set -e
+        set -u
+
+        REPO_DIR=/etc/aloli-headscale-state
+        DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
+        REPO_URL=git@github.com:aloli-aloli/headscale-state.git
+        HOSTNAME="$(hostname -s)"
+
+        [ -f "${DEPLOY_KEY}" ] || { echo "[init] deploy key absente : ${DEPLOY_KEY}" >&2; exit 1; }
+
+        export GIT_SSH_COMMAND="ssh -i ${DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+        if [ ! -d "${REPO_DIR}/.git" ]; then
+          git clone "${REPO_URL}" "${REPO_DIR}"
+        fi
+        cd "${REPO_DIR}"
+        git config user.email "headscale@aloli.net"
+        git config user.name  "headscale-${HOSTNAME}"
+        echo "[init] OK — backup configuré dans ${REPO_DIR}"
+
+  - cron-entry:
+      user: root
+      entry: "*/5 * * * * /usr/local/sbin/headscale-backup.sh >>/var/log/headscale-backup.log 2>&1"
