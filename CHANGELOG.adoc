@@ -14,9 +14,36 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
-== [Non publié]
+== 0.0.1 (11 juin 2026)
 
 === Ajouté
+
+==== Durcissement sshd en recettes unitaires + méta
+
+Découpage du durcissement sshd en recettes atomiques testables seules
+(banc QEMU `test-apply.sh`), composées par la méta `ssh-hardening`
+(modèle « sets FreeBSD ») :
+
+* `sshd-auth-keys-only` — auth par clé, pas de mot de passe (ex-contenu
+  direct de `ssh-hardening`).
+* `sshd-host-key-ed25519` — une seule clé d'hôte (ed25519).
+* `sshd-crypto-modern` — kex/ciphers/MACs modernes calqués sur la
+  référence adi.quimeo.net + `mlkem768x25519-sha256` (post-quantique,
+  OpenSSH 10) ; zéro `[fail]`/`[warn]` ssh-audit, mitigation Terrapin
+  totale (pas de chacha20-poly1305).
+* `sshd-banner-neutral` — banner neutre : `VersionAddendum` = société
+  (interpolation `{{ company }}`) → masque OS + date de patch.
+* `ssh-hardening` devient une MÉTA pure (`requires` les 4 unités) ; plus
+  de step `service-reload` (`sshd-config-set` valide + recharge sshd
+  lui-même) → idempotente.
+* `lib32`, `kernel-dbg` — sets pkgbase optionnels opt-in (`pkg-install`
+  des méta-paquets `FreeBSD-set-lib32` / `FreeBSD-kernel-generic-dbg`),
+  exclus de l'install de base pkgbase.
+
+==== Documentation
+
+* `README.adoc` passé en ANGLAIS (canonique, règle ALOLI) ; version
+  française conservée dans `README.fr.adoc`, renvoi croisé en tête.
 
 ==== Phase 2 → 4 — Mesh Headscale, toggle port 22, hooks Capistrano
 
