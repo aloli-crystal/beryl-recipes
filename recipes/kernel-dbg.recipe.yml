@@ -1,0 +1,5 @@
+recipe: kernel-dbg
+description: Symboles de debug du noyau GENERIC (analyse des crash dumps kgdb).
+steps:
+  - pkg-install:
+      packages: [FreeBSD-kernel-generic-dbg]

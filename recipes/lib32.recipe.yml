@@ -1,0 +1,5 @@
+recipe: lib32
+description: Bibliothèques de compatibilité 32-bit (set pkgbase FreeBSD-set-lib32).
+steps:
+  - pkg-install:
+      packages: [FreeBSD-set-lib32]
