@@ -1,0 +1,18 @@
+recipe: sshd-crypto-modern
+description: |
+  Algorithmes SSH modernes, calqués sur la référence adi.quimeo.net
+  + mlkem768x25519-sha256 (kex post-quantique d'OpenSSH 10, absent du 9.3
+  d'adi). Supprime tout ce que ssh-audit marque [fail]/[warn] :
+  ecdh-sha2-nistp* (courbes NSA), hmac-sha1 (SHA-1 cassé), umac-64, MACs
+  encrypt-and-MAC. Pas de chacha20-poly1305 (mitigation Terrapin totale,
+  comme adi). Les aes*-ctr restent (légitimes couplés aux MACs ETM).
+steps:
+  - sshd-config-set:
+      key: KexAlgorithms
+      value: mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512,diffie-hellman-group-exchange-sha256
+  - sshd-config-set:
+      key: Ciphers
+      value: aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+  - sshd-config-set:
+      key: MACs
+      value: hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com

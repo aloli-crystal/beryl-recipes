@@ -1,0 +1,12 @@
+recipe: sshd-banner-neutral
+description: |
+  Banner SSH neutre : VersionAddendum = nom de la société (variable
+  {{ company }} injectée par beryl). Le banner passe de
+  « SSH-2.0-OpenSSH_10.0 FreeBSD-20250801 » à « SSH-2.0-OpenSSH_10.0 quimeo »
+  → masque l'OS et SURTOUT la date de patch (la plus sensible : elle révèle
+  les CVE applicables). Le numéro OpenSSH lui-même n'est pas masquable par
+  config (compilé). Compression laissée par défaut (utile).
+steps:
+  - sshd-config-set:
+      key: VersionAddendum
+      value: "{{ company }}"

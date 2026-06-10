@@ -1,0 +1,12 @@
+recipe: sshd-host-key-ed25519
+description: Ne présenter qu'une seule clé d'hôte SSH (ed25519) — pas de rsa/ecdsa.
+# Dès qu'une directive HostKey est posée, sshd n'offre QUE celle(s)-ci
+# (les fichiers rsa/ecdsa peuvent rester sur disque, ignorés). HostKeyAlgorithms
+# verrouille en plus l'algo annoncé. Résultat ssh-audit : 1 seule host key.
+steps:
+  - sshd-config-set:
+      key: HostKey
+      value: /etc/ssh/ssh_host_ed25519_key
+  - sshd-config-set:
+      key: HostKeyAlgorithms
+      value: ssh-ed25519
