@@ -1,17 +1,17 @@
 recipe: ssh-hardening
 description: |
   Durcissement sshd COMPLET — méta-recette. Compose les unités atomiques
-  (chacune testable seule dans QEMU via ssh-audit) puis recharge sshd :
+  (chacune testable seule dans QEMU via ssh-audit) :
     * sshd-auth-keys-only   — auth par clé, pas de mot de passe
     * sshd-host-key-ed25519 — une seule clé d'hôte (ed25519)
     * sshd-crypto-modern    — kex/ciphers/MACs modernes (réf. adi + mlkem)
     * sshd-banner-neutral   — banner neutre (VersionAddendum = société)
+  Pas de step `service-reload` : la primitive `sshd-config-set` valide
+  (`sshd -t`) et recharge sshd elle-même à chaque changement, et skippe si
+  rien ne change → la méta est idempotente (2ᵉ apply = 0 applied).
   Backward-compatible : `requires: [ssh-hardening]` continue de tout poser.
 requires:
   - sshd-auth-keys-only
   - sshd-host-key-ed25519
   - sshd-crypto-modern
   - sshd-banner-neutral
-steps:
-  - service-reload:
-      name: sshd
