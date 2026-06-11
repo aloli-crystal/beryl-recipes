@@ -10,6 +10,13 @@ parameters:
     type: string
     default: deploy
     description: Utilisateur cible.
+  theme:
+    type: string
+    default: bira
+    description: >
+      Thème oh-my-zsh. Défaut `bira` : invite sur deux lignes affichant
+      user@hostname → on sait toujours sur quel serveur on est (sans
+      police spéciale, contrairement à agnoster).
 steps:
   - pkg-install:
       packages: [zsh, git]
@@ -23,7 +30,7 @@ steps:
       mode: "0644"
       content: |
         export ZSH="$HOME/.oh-my-zsh"
-        ZSH_THEME="robbyrussell"
+        ZSH_THEME="{{ theme }}"
         plugins=(git)
         source $ZSH/oh-my-zsh.sh
   - user-shell:

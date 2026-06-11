@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.4 (12 juin 2026)
+
+=== Modifié
+
+* `oh-my-zsh` — nouveau paramètre `theme` (défaut `bira` au lieu de
+  `robbyrussell`) : `bira` affiche `user@hostname` dans l'invite, on sait
+  toujours sur quel serveur on est. Surchargeable :
+  `oh-my-zsh: { user: deploy, theme: agnoster }`.
+
 == 0.0.3 (12 juin 2026)
 
 === Modifié
