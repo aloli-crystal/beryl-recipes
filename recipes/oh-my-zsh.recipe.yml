@@ -1,0 +1,31 @@
+recipe: oh-my-zsh
+description: |
+  Installe zsh + oh-my-zsh pour un utilisateur et passe son shell en zsh.
+  Paramètre `user` (défaut deploy). Idempotente : chaque étape skippe si
+  déjà faite (paquets présents, clone existant, shell déjà zsh).
+  Composée de primitives ÉTROITES (pas de `run` arbitraire) : pkg-install,
+  git-clone (URL auditable), file-write, user-shell.
+parameters:
+  user:
+    type: string
+    default: deploy
+    description: Utilisateur cible.
+steps:
+  - pkg-install:
+      packages: [zsh, git]
+  - git-clone:
+      repo: https://github.com/ohmyzsh/ohmyzsh.git
+      dest: /home/{{ user }}/.oh-my-zsh
+      user: "{{ user }}"
+  - file-write:
+      path: /home/{{ user }}/.zshrc
+      owner: "{{ user }}"
+      mode: "0644"
+      content: |
+        export ZSH="$HOME/.oh-my-zsh"
+        ZSH_THEME="robbyrussell"
+        plugins=(git)
+        source $ZSH/oh-my-zsh.sh
+  - user-shell:
+      user: "{{ user }}"
+      shell: /usr/local/bin/zsh
