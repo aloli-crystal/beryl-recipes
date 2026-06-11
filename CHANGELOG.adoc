@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.2 (11 juin 2026)
+
+=== Ajouté
+
+* `oh-my-zsh` — installe zsh + oh-my-zsh pour un utilisateur (param `user`,
+  défaut deploy) et passe son shell en zsh. Composée de primitives
+  ÉTROITES (pkg-install, git-clone, file-write, user-shell) — refus
+  délibéré d'une primitive `run` arbitraire (risque chaîne d'appro).
+  Requiert beryl >= 0.5.19 (primitives `git-clone` + `user-shell`).
+
 == 0.0.1 (11 juin 2026)
 
 === Ajouté
