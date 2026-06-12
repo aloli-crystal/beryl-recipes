@@ -1,0 +1,28 @@
+recipe: chruby
+description: |
+  Installe chruby (sélecteur de version Ruby) et pose l'intégration shell.
+  chruby ayant été RETIRÉ des ports FreeBSD, il est installé depuis le
+  tarball de release upstream (postmodern/chruby) via `make install`.
+  L'intégration est écrite dans le `~/.zshenv` de l'utilisateur (zsh le
+  source toujours), avec auto-switch via `.ruby-version`.
+parameters:
+  version:
+    type: string
+    default: "0.3.9"
+    description: Version de release chruby.
+  user:
+    type: string
+    default: deploy
+    description: Utilisateur cible pour l'intégration shell.
+steps:
+  - make-install:
+      url: https://github.com/postmodern/chruby/releases/download/v{{ version }}/chruby-{{ version }}.tar.gz
+      creates: /usr/local/share/chruby/chruby.sh
+  - file-write:
+      path: /home/{{ user }}/.zshenv
+      owner: "{{ user }}"
+      mode: "0644"
+      content: |
+        source /usr/local/share/chruby/chruby.sh
+        source /usr/local/share/chruby/auto.sh
+        [ -f "$HOME/.ruby-version" ] && chruby "$(cat "$HOME/.ruby-version")"

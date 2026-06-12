@@ -1,0 +1,9 @@
+recipe: ruby-install
+description: |
+  Installe l'outil `ruby-install` (paquet FreeBSD) + les dépendances de
+  compilation usuelles, pour bâtir des Ruby depuis les sources :
+  `ruby-install ruby 3.3`. (Selon la version de Ruby, des deps
+  supplémentaires peuvent être nécessaires — à ajouter ici au besoin.)
+steps:
+  - pkg-install:
+      packages: [ruby-install, gmake, libyaml, readline]
