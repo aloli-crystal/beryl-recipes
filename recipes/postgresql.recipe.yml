@@ -1,0 +1,28 @@
+recipe: postgresql
+description: |
+  Installe, initialise et démarre PostgreSQL. `version` = numéro de
+  version FreeBSD (ex. `16`, `17`) ou `latest` (défaut). Par défaut
+  installe `server` ET `client` ; `only: server` (ou `client`) pour
+  restreindre. `initdb` est lancé avant le start (idempotent) — PostgreSQL
+  l'exige, contrairement à MariaDB.
+parameters:
+  version:
+    type: string
+    default: latest
+    description: Numéro de version FreeBSD (ex. 17) ou `latest`.
+  only:
+    type: string
+    default: ""
+    description: "`server` ou `client` pour restreindre ; vide = les deux."
+steps:
+  - pkg-versioned:
+      base: postgresql
+      version: "{{ version }}"
+      only: "{{ only }}"
+  - sysrc-set:
+      key: postgresql_enable
+      value: "YES"
+  - postgresql-initdb: {}
+  - service-enable:
+      name: postgresql
+      start: true

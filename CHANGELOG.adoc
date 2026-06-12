@@ -14,6 +14,19 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.5 (12 juin 2026)
+
+=== Ajouté
+
+* `mariadb` — installe et démarre un serveur MariaDB. `version` (numéro
+  FreeBSD ou `latest`, défaut) ; `only: server|client` (défaut les deux).
+* `postgresql` — idem PostgreSQL, avec `initdb` idempotent avant le start.
+
+Les deux requièrent beryl >= 0.5.30 (primitives `pkg-versioned` +
+`postgresql-initdb`). `latest` est résolu sur la vraie version (l'encodage
+FreeBSD sans point piège un tri des noms : mariadb 10.11=`1011` vs
+11.4=`114`).
+
 == 0.0.4 (12 juin 2026)
 
 === Modifié

@@ -1,0 +1,27 @@
+recipe: mariadb
+description: |
+  Installe et démarre un serveur MariaDB. `version` = numéro de version
+  FreeBSD (ex. `114`, `1011`) ou `latest` (défaut, résolu sur la vraie
+  version — l'encodage FreeBSD sans point piège un tri des noms). Par
+  défaut installe `server` ET `client` ; `only: server` (ou `client`)
+  pour restreindre. MariaDB s'auto-initialise au premier start.
+parameters:
+  version:
+    type: string
+    default: latest
+    description: Numéro de version FreeBSD (ex. 114) ou `latest`.
+  only:
+    type: string
+    default: ""
+    description: "`server` ou `client` pour restreindre ; vide = les deux."
+steps:
+  - pkg-versioned:
+      base: mariadb
+      version: "{{ version }}"
+      only: "{{ only }}"
+  - sysrc-set:
+      key: mysql_enable
+      value: "YES"
+  - service-enable:
+      name: mysql-server
+      start: true
