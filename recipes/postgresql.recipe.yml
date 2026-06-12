@@ -19,10 +19,8 @@ steps:
       base: postgresql
       version: "{{ version }}"
       only: "{{ only }}"
-  - sysrc-set:
-      key: postgresql_enable
-      value: "YES"
-  - postgresql-initdb: {}
+  - postgresql-initdb: {} # se skippe si pas de serveur (only: client)
   - service-enable:
       name: postgresql
       start: true
+      if_present: true # only: client → pas de serveur → skippé

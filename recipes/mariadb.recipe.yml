@@ -19,9 +19,8 @@ steps:
       base: mariadb
       version: "{{ version }}"
       only: "{{ only }}"
-  - sysrc-set:
-      key: mysql_enable
-      value: "YES"
   - service-enable:
       name: mysql-server
+      enable_var: mysql_enable # script mysql-server, variable mysql_enable
       start: true
+      if_present: true # only: client → pas de serveur → tout est skippé

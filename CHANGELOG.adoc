@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.6 (12 juin 2026)
+
+=== Corrigé
+
+* `mariadb` / `postgresql` — avec `only: client`, plus aucune étape
+  serveur (sysrc, initdb, start) n'est exécutée : `service-enable`
+  utilise `if_present: true` (skip si pas de script rc) et `enable_var`
+  (mariadb : script `mysql-server`, variable `mysql_enable`). Le `sysrc`
+  redondant est supprimé. Requiert beryl >= 0.5.31.
+
 == 0.0.5 (12 juin 2026)
 
 === Ajouté
