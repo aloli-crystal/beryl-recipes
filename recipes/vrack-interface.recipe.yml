@@ -1,0 +1,35 @@
+recipe: vrack-interface
+description: |
+  Configure l'interface privée vRack avec une IP statique. SÛR : ne touche
+  QUE l'interface privée (`iface`, défaut `ix1`) → l'interface publique
+  n'est pas affectée, le host reste joignable normalement. C'est l'étape 1
+  du bastion vRack (avant tout basculement du sshd).
+
+  `ip` est OBLIGATOIRE et propre à chaque host → déclarez-le PAR host :
+
+    # zgra.host.yml
+    apply_recipes:
+      - vrack-interface: { ip: 192.168.42.1 }
+    # han.host.yml
+    apply_recipes:
+      - vrack-interface: { ip: 192.168.42.10 }
+
+  Pré-requis : le host doit être rattaché au vRack côté OVH (l'interface
+  doit être `status: active`), sinon l'IP est posée mais sans connectivité.
+parameters:
+  iface:
+    type: string
+    default: ix1
+    description: Interface vRack (2ᵉ NIC, sans IP publique).
+  ip:
+    type: string
+    default: ""
+    description: IP privée du host sur le vRack (obligatoire).
+  netmask:
+    type: string
+    default: "255.255.255.0"
+steps:
+  - netif:
+      iface: "{{ iface }}"
+      ip: "{{ ip }}"
+      netmask: "{{ netmask }}"
