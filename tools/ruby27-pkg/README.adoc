@@ -1,0 +1,54 @@
+= Ruby 2.7.8 — paquet pkg interne Aloli (transitoire)
+
+Build *une fois*, déploiement *en pkg* sur la flotte FreeBSD 15. Remplace la
+compilation par host (`ruby-install`) pour ~20 serveurs, le temps de migrer
+hors Ruby 2.7 (6–12 mois).
+
+== Pourquoi
+
+* Ruby 2.7 est EOL : pas de port FreeBSD → on *repackage* l'arbre déjà compilé
+  et validé (`/opt/rubies/ruby-2.7.8` sur `han`), on ne maintient PAS un port.
+* `openssl111` est déprécié (retrait upstream après 2026-04-30) → on le *fige*
+  dans notre dépôt privé pour garder la (ré)install possible toute la fenêtre.
+* Tous les hôtes installent au *même chemin* `/opt/rubies/ruby-2.7.8` (rpath,
+  shebangs liés en dur) → le binaire repackagé tourne tel quel. C'est la
+  *condition* de validité du repackaging.
+
+== Procédure (sur `han`, en root)
+
+[source,sh]
+----
+# 1. Produire le pkg ruby + figer openssl111 dans le dépôt
+./01-make-ruby27-pkg.sh
+
+# 2. Générer la clé (1re fois), signer le catalogue, publier
+./02-build-repo.sh
+#   -> imprime la CLÉ PUBLIQUE : la coller dans
+#      recipes/ruby27-aloli.recipe.yml (étape file-write aloli-pkg.pub)
+----
+
+Variables surchargables : `REPO`, `KEYS`, `PUBLISH`, `OSSL_VERSION`.
+
+== Déploiement flotte
+
+Via la recette `ruby27-aloli` (requires `chruby`) :
+
+[source,sh]
+----
+beryl apply <société|domaine|host>
+----
+
+La recette pose la clé publique + la conf du dépôt `aloli` (priorité 100),
+puis `pkg install openssl111 ruby27-aloli`.
+
+== ⚠️ Sécurité
+
+* `keys/aloli-pkg.key` (clé PRIVÉE de signature) : *hors git*, 0400, sauvegardée.
+  Ne JAMAIS la committer.
+* `keys/aloli-pkg.pub` : publique, va dans la recette (sûre à diffuser).
+
+== Retrait (fin de migration)
+
+Supprimer la recette `ruby27-aloli`, retirer les pkg du dépôt, puis sur les
+hôtes : `pkg delete ruby27-aloli openssl111` + supprimer
+`/usr/local/etc/pkg/repos/aloli.conf`.

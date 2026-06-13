@@ -12,11 +12,10 @@ parameters:
     description: Utilisateur cible.
   theme:
     type: string
-    default: bira
+    default: gentoo
     description: >
-      Thème oh-my-zsh. Défaut `bira` : invite sur deux lignes affichant
-      user@hostname → on sait toujours sur quel serveur on est (sans
-      police spéciale, contrairement à agnoster).
+      Thème oh-my-zsh. Défaut `gentoo` : invite sur une lignes affichant
+      user@hostname → on sait toujours sur quel serveur on est.
 steps:
   - pkg-install:
       packages: [zsh, git]

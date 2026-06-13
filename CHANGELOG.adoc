@@ -14,6 +14,14 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.12 (13 juin 2026)
+
+=== Modifié
+
+* `clamav-tcp` renommée **`clamav-mesh`** : nom aligné sur l'usage (serveur
+  de scan sur le réseau mesh) plutôt que sur le mécanisme (TCP). Contenu
+  inchangé. Pas encore appliquée → renommage sans impact.
+
 == 0.0.11 (13 juin 2026)
 
 === Ajouté

@@ -30,7 +30,7 @@ steps:
       content: |
         DatabaseDirectory /var/db/clamav
         DatabaseMirror database.clamav.net
-  # clamd.conf géré par directives (additif) → la recette clamav-tcp peut
+  # clamd.conf géré par directives (additif) → la recette clamav-mesh peut
   # ajouter TCPSocket/TCPAddr sans réécrire toute la conf ni flapper.
   - clamd-config-set: { key: DatabaseDirectory, value: /var/db/clamav }
   - clamd-config-set: { key: LocalSocket, value: /var/run/clamav/clamd.sock }

@@ -1,4 +1,4 @@
-recipe: clamav-tcp
+recipe: clamav-mesh
 description: |
   Expose le démon clamd en TCP sur le MESH headscale : les serveurs du mesh
   envoient un fichier à scanner (protocole INSTREAM, le fichier est streamé,
