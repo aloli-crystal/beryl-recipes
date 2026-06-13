@@ -1,0 +1,33 @@
+recipe: clamav-tcp
+description: |
+  Expose le démon clamd en TCP sur le MESH headscale : les serveurs du mesh
+  envoient un fichier à scanner (protocole INSTREAM, le fichier est streamé,
+  pas besoin de partage de FS) et reçoivent CLEAN / FOUND.
+
+  SÉCURITÉ : clamd est bindé UNIQUEMENT sur l'IP tailscale du host (jamais
+  public — `TCPAddr` posé AVANT `TCPSocket` pour qu'il ne passe jamais par
+  0.0.0.0), et pf n'autorise le port 3310 que sur `tailscale0` (défense en
+  profondeur). Un clamd TCP ouvert = scannable/DoS-able : ces deux verrous
+  sont indispensables.
+
+  Pré-requis : le host doit être joint au mesh (`requires: headscale-node`)
+  — sinon `tailscale ip -4` échoue et la recette s'arrête clairement.
+
+  Côté client (serveur app, sur le mesh) : une gem clamd (`clamav-client`)
+  pointée sur `tcp://<ip-tailscale-du-serveur-scan>:3310`.
+requires:
+  - clamav
+  - headscale-node
+steps:
+  # TCPAddr d'abord → clamd ne binde JAMAIS 0.0.0.0, seulement le mesh.
+  - clamd-config-set:
+      key: TCPAddr
+      value_from_command: "tailscale ip -4"
+  - clamd-config-set:
+      key: TCPSocket
+      value: "3310"
+  # Défense en profondeur : 3310 autorisé seulement sur tailscale0.
+  - pf-rule:
+      rule: "pass in quick on tailscale0 proto tcp to port 3310"
+  - pf-rule:
+      rule: "block in quick proto tcp to port 3310"

@@ -30,14 +30,12 @@ steps:
       content: |
         DatabaseDirectory /var/db/clamav
         DatabaseMirror database.clamav.net
-  - file-write:
-      path: /usr/local/etc/clamd.conf
-      mode: "0644"
-      content: |
-        DatabaseDirectory /var/db/clamav
-        LocalSocket /var/run/clamav/clamd.sock
-        LocalSocketGroup {{ socket_group }}
-        LocalSocketMode 660
+  # clamd.conf géré par directives (additif) → la recette clamav-tcp peut
+  # ajouter TCPSocket/TCPAddr sans réécrire toute la conf ni flapper.
+  - clamd-config-set: { key: DatabaseDirectory, value: /var/db/clamav }
+  - clamd-config-set: { key: LocalSocket, value: /var/run/clamav/clamd.sock }
+  - clamd-config-set: { key: LocalSocketGroup, value: "{{ socket_group }}" }
+  - clamd-config-set: { key: LocalSocketMode, value: "660" }
   - freshclam: {} # base virale initiale (clamd en a besoin pour démarrer)
   - service-enable:
       name: clamav_freshclam # scripts rc FreeBSD en underscore (pas tiret)

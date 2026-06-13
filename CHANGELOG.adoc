@@ -14,6 +14,22 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.11 (13 juin 2026)
+
+=== Ajouté
+
+* `clamav-tcp` — expose clamd en TCP sur le mesh headscale (serveur de scan
+  centralisé : les serveurs du mesh streament un fichier via INSTREAM et
+  reçoivent CLEAN/FOUND). clamd bindé sur l'IP tailscale uniquement (jamais
+  public) + `pf-rule` n'autorisant 3310 que sur `tailscale0`. `requires:
+  [clamav, headscale-node]`. Requiert beryl >= 0.5.36.
+
+=== Modifié
+
+* `clamav` — clamd.conf géré par `clamd-config-set` (additif) au lieu d'un
+  `file-write` global, pour que `clamav-tcp` ajoute TCPSocket/TCPAddr sans
+  réécrire ni flapper.
+
 == 0.0.10 (13 juin 2026)
 
 === Corrigé
