@@ -40,10 +40,8 @@ steps:
         LocalSocketMode 660
   - freshclam: {} # base virale initiale (clamd en a besoin pour démarrer)
   - service-enable:
-      name: clamav-freshclam
-      enable_var: clamav_freshclam_enable # script tireté, variable soulignée
+      name: clamav_freshclam # scripts rc FreeBSD en underscore (pas tiret)
       start: true
   - service-enable:
-      name: clamav-clamd
-      enable_var: clamav_clamd_enable
+      name: clamav_clamd
       start: true

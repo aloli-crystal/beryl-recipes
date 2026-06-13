@@ -14,6 +14,14 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.10 (13 juin 2026)
+
+=== Corrigé
+
+* `clamav` — noms de service rc FreeBSD en underscore (`clamav_freshclam`,
+  `clamav_clamd`), pas en tiret : le démarrage des démons échouait
+  (« does not exist »). enable_var redevient implicite.
+
 == 0.0.9 (13 juin 2026)
 
 === Modifié
