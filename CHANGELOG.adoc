@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.9 (13 juin 2026)
+
+=== Modifié
+
+* `clamav` — socket clamd ouvert au groupe de l'app (`LocalSocketGroup` +
+  `LocalSocketMode 660`, param `socket_group` défaut `www`) : le user
+  applicatif peut scanner un fichier à l'upload via
+  `clamdscan --fdpass <fichier>` sans être root. Cible le cas d'usage
+  scan-à-la-demande (vérifier un import avant de l'accepter).
+
 == 0.0.8 (13 juin 2026)
 
 === Ajouté

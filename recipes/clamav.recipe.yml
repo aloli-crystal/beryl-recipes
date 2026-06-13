@@ -1,13 +1,26 @@
 recipe: clamav
 description: |
-  Antivirus ClamAV : démon de scan `clamd` + mise à jour automatique de la
-  base virale `freshclam`. La base est téléchargée une première fois (avant
-  de démarrer clamd, qui refuse de partir sans base). Configs minimales
-  posées sans la ligne `Example` (qui empêcherait les démons de démarrer).
+  Antivirus ClamAV pour le SCAN À LA DEMANDE (ex. vérifier un fichier
+  uploadé avant de l'accepter). Le démon `clamd` garde la base en RAM →
+  chaque scan est instantané ; l'app envoie le fichier au socket clamd.
+  `freshclam` met la base à jour automatiquement.
 
-  Scan à la demande ensuite : `clamdscan <chemin>` (rapide, via le démon)
-  ou `clamscan -r <chemin>`. Pour un scan planifié, ajoutez une recette
-  cron `clamdscan` séparée.
+  Le socket est ouvert au groupe de l'app (param `socket_group`, défaut
+  `www`) → le user applicatif peut scanner sans être root ni clamav.
+
+  Côté app, scanner un fichier :
+    clamdscan --fdpass --no-summary <fichier>
+  Code retour : 0 = sain, 1 = infecté, 2 = erreur. `--fdpass` passe le
+  descripteur de fichier à clamd (pas de souci de permission sur le
+  fichier temporaire de l'upload). Côté Ruby : gem `clamby` (wrappe
+  clamdscan) ou `clamav-client` (parle le protocole sur le socket).
+
+  Configs minimales sans la ligne `Example` (qui bloquerait les démons).
+parameters:
+  socket_group:
+    type: string
+    default: www
+    description: Groupe autorisé à parler au socket clamd (= groupe de l'app).
 steps:
   - pkg-install:
       packages: [clamav]
@@ -23,6 +36,8 @@ steps:
       content: |
         DatabaseDirectory /var/db/clamav
         LocalSocket /var/run/clamav/clamd.sock
+        LocalSocketGroup {{ socket_group }}
+        LocalSocketMode 660
   - freshclam: {} # base virale initiale (clamd en a besoin pour démarrer)
   - service-enable:
       name: clamav-freshclam
