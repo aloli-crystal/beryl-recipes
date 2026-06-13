@@ -1,0 +1,34 @@
+recipe: clamav
+description: |
+  Antivirus ClamAV : démon de scan `clamd` + mise à jour automatique de la
+  base virale `freshclam`. La base est téléchargée une première fois (avant
+  de démarrer clamd, qui refuse de partir sans base). Configs minimales
+  posées sans la ligne `Example` (qui empêcherait les démons de démarrer).
+
+  Scan à la demande ensuite : `clamdscan <chemin>` (rapide, via le démon)
+  ou `clamscan -r <chemin>`. Pour un scan planifié, ajoutez une recette
+  cron `clamdscan` séparée.
+steps:
+  - pkg-install:
+      packages: [clamav]
+  - file-write:
+      path: /usr/local/etc/freshclam.conf
+      mode: "0644"
+      content: |
+        DatabaseDirectory /var/db/clamav
+        DatabaseMirror database.clamav.net
+  - file-write:
+      path: /usr/local/etc/clamd.conf
+      mode: "0644"
+      content: |
+        DatabaseDirectory /var/db/clamav
+        LocalSocket /var/run/clamav/clamd.sock
+  - freshclam: {} # base virale initiale (clamd en a besoin pour démarrer)
+  - service-enable:
+      name: clamav-freshclam
+      enable_var: clamav_freshclam_enable # script tireté, variable soulignée
+      start: true
+  - service-enable:
+      name: clamav-clamd
+      enable_var: clamav_clamd_enable
+      start: true
