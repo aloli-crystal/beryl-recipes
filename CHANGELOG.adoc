@@ -14,6 +14,32 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.17 (14 juin 2026)
+
+=== Ajouté
+
+* `sshd-vrack-only` — cache le port SSH 22 du public : joignable
+  uniquement depuis le sous-réseau vRack (filtrage `pf` par subnet, pas
+  par interface ; IPv4+IPv6 publics bloqués). Lève la non-conformité
+  « port 22 exposé ». Anti-lockout : à appliquer APRÈS `vrack-interface`
+  ET en joignant le host par le vRack (`ssh_host:` IP vRack + `proxy_jump:`).
+  Requiert beryl >= 0.5.48. Validé manuellement in vivo sur bi avant automatisation.
+
+== 0.0.16 (14 juin 2026)
+
+=== Modifié
+
+* `vrack-interface` — doc alignée sur l'auto-détection par route par défaut
+  (idempotente même quand l'IP vRack est déjà posée). Requiert beryl >= 0.5.47.
+
+== 0.0.15 (14 juin 2026)
+
+=== Modifié
+
+* `vrack-interface` — `iface` vaut `auto` par défaut → beryl détecte le NIC
+  vRack (le nom varie selon le matériel : ix1, ixl1, igb1…). Override
+  `iface: <nom>` conservé. Requiert beryl >= 0.5.45.
+
 == 0.0.14 (14 juin 2026)
 
 === Modifié

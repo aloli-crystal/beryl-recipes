@@ -1,0 +1,48 @@
+recipe: sshd-vrack-only
+description: |
+  Cache le port SSH (22) du PUBLIC : il n'est plus joignable que depuis le
+  vRack (via un bastion z). Lève la non-conformité « port 22 exposé ».
+
+  pf est default-pass → cette recette n'ajoute QUE le filtrage du 22 ; tous
+  les autres services ET les connexions établies continuent. Règles (l'ordre
+  `quick` = premier qui matche gagne, donc le pass AVANT le block) :
+
+    pass  in quick inet proto tcp from <vrack_subnet> to port 22   # vRack OK (IPv4)
+    block in quick      proto tcp            to port 22            # public KO (v4+v6)
+
+  Filtrage par SOUS-RÉSEAU vRack (pas par nom d'interface) → indépendant du
+  matériel. L'IPv6 n'a pas de pass → tout l'IPv6:22 est bloqué (le vRack est
+  IPv4). beryl possède /etc/pf.conf sur ces serveurs app cachés.
+
+  ⚠️ ANTI-LOCKOUT — PRÉ-REQUIS AVANT D'APPLIQUER :
+   1. Le host porte son IP vRack (recette `vrack-interface` déjà appliquée).
+   2. beryl joint le host PAR LE VRACK. Dans le `.host.yml` :
+        ssh_host: <IP vRack du host>        # ex. 192.168.42.30
+        proxy_jump: <user>@<un z public>    # ex. deploy@zsbg.quimeo.net
+      Sinon, en passant par le 22 public, beryl COUPE sa propre session au
+      moment du block.
+   3. Validez l'accès vRack AVANT : `beryl apply <host> --dry-run` doit se
+      connecter sans erreur (donc via le bastion).
+
+  Sur un host où pf TOURNE DÉJÀ (ex. bascule manuelle antérieure), le
+  file-write met à jour /etc/pf.conf mais ne recharge pas pf à chaud →
+  rechargez une fois : `sudo pfctl -f /etc/pf.conf` (ou au reboot,
+  `pf_enable=YES` persiste). Sur un host neuf, `service pf start` charge et
+  applique directement.
+parameters:
+  vrack_subnet:
+    type: string
+    default: 192.168.42.0/24
+    description: Sous-réseau vRack autorisé à joindre le port 22.
+steps:
+  - file-write:
+      path: /etc/pf.conf
+      mode: "0644"
+      content: |
+        # Généré par beryl (recette sshd-vrack-only). NE PAS éditer à la main.
+        set skip on lo
+        pass in quick inet proto tcp from {{ vrack_subnet }} to port 22
+        block in quick proto tcp to port 22
+  - service-enable:
+      name: pf
+      start: true
