@@ -1,26 +1,31 @@
 recipe: vrack-interface
 description: |
   Configure l'interface privée vRack avec une IP statique. SÛR : ne touche
-  QUE l'interface privée (`iface`, défaut `ix1`) → l'interface publique
-  n'est pas affectée, le host reste joignable normalement. C'est l'étape 1
-  du bastion vRack (avant tout basculement du sshd).
+  QUE l'interface privée (`iface`) → l'interface publique n'est pas
+  affectée, le host reste joignable normalement. C'est l'étape 1 du bastion
+  vRack (avant tout basculement du sshd).
+
+  `iface` vaut `auto` par défaut → beryl DÉTECTE le NIC vRack (la seule
+  interface Ethernet `status: active` sans IPv4 ; le nom varie selon le
+  matériel : ix1, ixl1, igb1, bce1…). Si l'auto-détection est ambiguë ou
+  vide, netif échoue en listant les interfaces → précisez `iface:` à la main.
 
   `ip` est OBLIGATOIRE et propre à chaque host → déclarez-le PAR host :
 
-    # zgra.host.yml
+    # auto-détection du NIC (recommandé)
     apply_recipes:
       - vrack-interface: { ip: 192.168.42.1 }
-    # han.host.yml
+    # NIC explicite (si auto échoue)
     apply_recipes:
-      - vrack-interface: { ip: 192.168.42.10 }
+      - vrack-interface: { ip: 192.168.42.11, iface: ixl1 }
 
   Pré-requis : le host doit être rattaché au vRack côté OVH (l'interface
   doit être `status: active`), sinon l'IP est posée mais sans connectivité.
 parameters:
   iface:
     type: string
-    default: ix1
-    description: Interface vRack (2ᵉ NIC, sans IP publique).
+    default: auto
+    description: Interface vRack (2ᵉ NIC sans IP publique). `auto` = détection.
   ip:
     type: string
     default: ""
