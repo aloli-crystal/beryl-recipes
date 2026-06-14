@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.14 (14 juin 2026)
+
+=== Modifié
+
+* `clamav` — ajoute un step `group-member` qui inscrit l'utilisateur
+  `clamav` dans le groupe `socket_group` (défaut `www`). Sans ça, `clamd`
+  (qui tourne sous `clamav`) ne peut pas mettre son socket dans le groupe
+  `www` et échoue au démarrage (« Failed to change socket ownership to
+  group www »). Requiert beryl >= 0.5.43 (primitive `group-member`).
+
 == 0.0.13 (14 juin 2026)
 
 === Ajouté

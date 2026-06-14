@@ -36,6 +36,11 @@ steps:
   - clamd-config-set: { key: LocalSocket, value: /var/run/clamav/clamd.sock }
   - clamd-config-set: { key: LocalSocketGroup, value: "{{ socket_group }}" }
   - clamd-config-set: { key: LocalSocketMode, value: "660" }
+  # clamd tourne sous l'utilisateur `clamav` : pour mettre son socket dans
+  # le groupe `socket_group`, il doit en être MEMBRE (un process non-root ne
+  # peut chgrp que vers un groupe qu'il possède). Sinon clamd échoue au
+  # démarrage : « Failed to change socket ownership to group www ».
+  - group-member: { user: clamav, group: "{{ socket_group }}" }
   - freshclam: {} # base virale initiale (clamd en a besoin pour démarrer)
   - service-enable:
       name: clamav_freshclam # scripts rc FreeBSD en underscore (pas tiret)
