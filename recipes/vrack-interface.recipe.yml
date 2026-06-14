@@ -6,9 +6,10 @@ description: |
   vRack (avant tout basculement du sshd).
 
   `iface` vaut `auto` par défaut → beryl DÉTECTE le NIC vRack (la seule
-  interface Ethernet `status: active` sans IPv4 ; le nom varie selon le
-  matériel : ix1, ixl1, igb1, bce1…). Si l'auto-détection est ambiguë ou
-  vide, netif échoue en listant les interfaces → précisez `iface:` à la main.
+  interface Ethernet `status: active` qui n'est PAS celle de la route par
+  défaut = pas la publique ; le nom varie selon le matériel : ix1, ixl1,
+  igb1, bce1…). Idempotent même quand l'IP vRack est déjà posée. Si la
+  détection est ambiguë/vide, netif échoue → précisez `iface:` à la main.
 
   `ip` est OBLIGATOIRE et propre à chaque host → déclarez-le PAR host :
 
