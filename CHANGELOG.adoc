@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.19 (16 juin 2026)
+
+=== Ajouté
+
+* `poudriere-nginx` — nginx qui SERT le dépôt poudriere du builder, bindé sur
+  l'IP vRack uniquement (`listen {{ vrack_ip }}:80`, jamais public). Racine =
+  `/usr/local/poudriere/data/packages`. `requires: vrack-interface` (IP montée
+  avant le bind). Utilise la variable built-in `{{ vrack_ip }}` (>= beryl
+  0.5.69). Ne pas combiner avec `nginx`/`web-server` (config concurrente).
+
 == 0.0.18 (16 juin 2026)
 
 === Ajouté

@@ -1,0 +1,46 @@
+recipe: poudriere-nginx
+description: |
+  nginx qui SERT le dépôt poudriere du builder, bindé sur l'IP vRack
+  UNIQUEMENT (jamais public — pas besoin de toucher à pf). Racine = la sortie
+  poudriere (`/usr/local/poudriere/data/packages`) ; les clients pointent
+  `http://{{ vrack_ip }}/<jail>-<ports>` (ex. `…/fbsd150amd64-default`).
+
+  Utilise la variable built-in `{{ vrack_ip }}` (déclarée une seule fois via
+  `vrack-interface: { ip }`). `requires: vrack-interface` garantit que l'IP est
+  montée AVANT que nginx tente de s'y binder.
+
+  ⚠️ Ne PAS combiner avec la recette `nginx`/`web-server` sur la même machine :
+  elles écrivent toutes le `nginx.conf` (builder = serveur de paquets, pas
+  serveur applicatif).
+requires:
+  - vrack-interface
+steps:
+  - pkg-install:
+      packages: [nginx]
+  - file-write:
+      path: /usr/local/etc/nginx/nginx.conf
+      mode: "0644"
+      content: |
+        worker_processes auto;
+        events { worker_connections 1024; }
+
+        http {
+            include       mime.types;
+            default_type  application/octet-stream;
+            sendfile      on;
+            keepalive_timeout 65;
+
+            server {
+                # bind sur l'IP vRack SEULEMENT → invisible côté public
+                listen      {{ vrack_ip }}:80;
+                server_name pkg.vrack.quimeo.net;
+
+                # racine = dépôts poudriere ; URL client :
+                #   http://{{ vrack_ip }}/fbsd150amd64-default
+                root      /usr/local/poudriere/data/packages;
+                autoindex on;
+            }
+        }
+  - service-enable:
+      name: nginx
+      start: true
