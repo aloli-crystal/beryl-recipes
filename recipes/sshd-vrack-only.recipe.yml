@@ -14,19 +14,16 @@ description: |
   matériel. L'IPv6 n'a pas de pass → tout l'IPv6:22 est bloqué (le vRack est
   IPv4). beryl possède /etc/pf.conf sur ces serveurs app cachés.
 
-  ANTI-LOCKOUT — beryl s'en charge via l'argument `bastion` :
-   Invoquée avec `bastion` (ex. `- sshd-vrack-only: { bastion: zsbg }`), beryl
-   ÉCRIT automatiquement, AVANT de se connecter, dans le `.host.yml` :
-        ssh_host: <IP vRack du host>          # = vrack_ip (vrack-interface)
-        proxy_jump: <user>@<bastion>.<domaine>
-   …puis se (re)connecte PAR le bastion → fermer le 22 public ne coupe pas la
-   session. (>= beryl 0.5.75)
+  ANTI-LOCKOUT — le routage vient du champ `bastion:` du host (pas de cette
+  recette). Posez-le AVANT via `beryl vrack <host>` (choix « joindre via un
+  bastion existant ») → écrit `bastion: <nom>` ; beryl en dérive ssh_host (= IP
+  vRack) + proxy_jump (= user@<nom>.<domaine>) et joint donc le host PAR le
+  bastion. Fermer le 22 public ne coupe alors pas la session. (>= beryl 0.5.77)
 
   ⚠️ PRÉ-REQUIS : le host doit DÉJÀ porter son IP vRack (`vrack-interface`
-  appliquée lors d'un apply ANTÉRIEUR) et être joignable par le bastion. Sinon
-  beryl ne peut entrer par le vRack et REFUSE (uname vide) — appliquez d'abord
-  `vrack-interface` seul, validez, PUIS ajoutez `sshd-vrack-only`. Sans
-  `bastion`, beryl n'écrit rien : posez ssh_host/proxy_jump à la main.
+  appliquée lors d'un apply ANTÉRIEUR), avoir `bastion: <nom>` posé, et être
+  joignable par le bastion. Sinon beryl REFUSE (uname vide) : appliquez d'abord
+  `vrack-interface` seul, validez l'accès bastion, PUIS ajoutez `sshd-vrack-only`.
 
   Sur un host où pf TOURNE DÉJÀ (ex. bascule manuelle antérieure), le
   file-write met à jour /etc/pf.conf mais ne recharge pas pf à chaud →
@@ -38,17 +35,6 @@ parameters:
     type: string
     default: 192.168.42.0/24
     description: Sous-réseau vRack autorisé à joindre le port 22.
-  bastion:
-    type: string
-    default: ""
-    description: |
-      Bastion z par lequel beryl rejoindra le host une fois caché. Déclenche
-      l'écriture auto de ssh_host (= IP vRack) + proxy_jump dans le host.yml.
-      Valeurs :
-        - `auto`  → beryl déduit le z du MÊME datacentre depuis l'IP vRack
-                    (chiffre des dizaines = DC : .31 → DC3 → z à .3). Recommandé.
-        - `zsbg`  → nom court (→ `zsbg.<domaine>`) ou FQDN explicite.
-        - vide    → beryl n'écrit rien (pose manuelle de ssh_host/proxy_jump).
 steps:
   - file-write:
       path: /etc/pf.conf
