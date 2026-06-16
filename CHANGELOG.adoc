@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.21 (16 juin 2026)
+
+=== Ajouté
+
+* `pkg-repo-quimeo` — enrôle le dépôt pkg privé `quimeo` sur un client (clé
+  publique de signature + `/usr/local/etc/pkg/repos/quimeo.conf`, priorité 10,
+  URL = IP vRack du builder). `requires: vrack-interface`. Modèle A (overlay) :
+  `quimeo` ne sert que l'EOL/custom, le reste reste officiel. Consommation
+  validée in vivo depuis obi (`pkg update` → 7 paquets, signature OK).
+
 == 0.0.20 (16 juin 2026)
 
 === Ajouté
