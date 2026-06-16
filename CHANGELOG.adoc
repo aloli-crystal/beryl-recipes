@@ -14,6 +14,14 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.23 (16 juin 2026)
+
+=== Modifié
+
+* `sshd-vrack-only` — l'argument `bastion` accepte `auto` : beryl déduit le z
+  du MÊME datacentre depuis l'IP vRack (dizaine du dernier octet = DC). Requiert
+  beryl >= 0.5.76.
+
 == 0.0.22 (16 juin 2026)
 
 === Modifié

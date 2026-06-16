@@ -42,9 +42,13 @@ parameters:
     type: string
     default: ""
     description: |
-      Bastion z par lequel beryl rejoindra le host une fois caché (nom court
-      ou FQDN, ex. `zsbg` → `zsbg.<domaine>`). Déclenche l'écriture auto de
-      ssh_host (= IP vRack) + proxy_jump dans le host.yml. Vide = pose manuelle.
+      Bastion z par lequel beryl rejoindra le host une fois caché. Déclenche
+      l'écriture auto de ssh_host (= IP vRack) + proxy_jump dans le host.yml.
+      Valeurs :
+        - `auto`  → beryl déduit le z du MÊME datacentre depuis l'IP vRack
+                    (chiffre des dizaines = DC : .31 → DC3 → z à .3). Recommandé.
+        - `zsbg`  → nom court (→ `zsbg.<domaine>`) ou FQDN explicite.
+        - vide    → beryl n'écrit rien (pose manuelle de ssh_host/proxy_jump).
 steps:
   - file-write:
       path: /etc/pf.conf
