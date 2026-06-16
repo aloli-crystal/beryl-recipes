@@ -9,6 +9,15 @@ Le format s'inspire de https://keepachangelog.com/fr/1.1.0/[Keep a Changelog].
 
 Versionnage par tags git aligné sur les jalons beryl :
 
+== 0.0.22 (16 juin 2026)
+
+=== Modifié
+
+* `sshd-vrack-only` — nouvel argument `bastion` : beryl inscrit automatiquement
+  `ssh_host` (= IP vRack) + `proxy_jump` (= user@bastion.domaine) dans le host.yml
+  AVANT de fermer le 22 public, et se connecte par le bastion (plus de pose
+  manuelle, plus de lockout). Requiert beryl >= 0.5.75.
+
 * `v0.x.y` — phase 0/1, recettes en cours de stabilisation, format
   YAML pas encore figé.
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
