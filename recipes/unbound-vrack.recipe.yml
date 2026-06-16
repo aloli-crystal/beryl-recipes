@@ -1,0 +1,46 @@
+recipe: unbound-vrack
+description: |
+  `unbound` = résolveur DNS PRIVÉ du vRack, sur un bastion z. Écoute
+  UNIQUEMENT sur l'IP vRack (`vrack_ip`) + loopback (jamais public) ; sert la
+  zone `vrack.quimeo.net` (le fichier `vrack.conf` est rempli par
+  `beryl vrack-dns --to <ce z>`) et forwarde le reste vers des résolveurs
+  publics.
+
+  ⚠️ APRÈS cette recette : `beryl vrack-dns --to <ce z>` pour remplir la zone.
+  (Ré-appliquer la recette remet `vrack.conf` à vide → relancez `vrack-dns`.)
+
+  ⚠️ Config unbound À VALIDER IN VIVO sur un vrai z (1ère version).
+parameters:
+  vrack_ip:
+    type: string
+    default: ""
+    description: IP vRack de CE z (= son IP `vrack-interface`). Obligatoire.
+steps:
+  - pkg-install:
+      packages: [unbound]
+  # Placeholder pour que l'`include` ne casse pas au 1er démarrage.
+  - file-write:
+      path: /usr/local/etc/unbound/vrack.conf
+      mode: "0644"
+      content: |
+        # Zone vRack — remplie par `beryl vrack-dns --to <ce z>`.
+  - file-write:
+      path: /usr/local/etc/unbound/unbound.conf
+      mode: "0644"
+      content: |
+        server:
+          interface: 127.0.0.1
+          interface: {{ vrack_ip }}
+          access-control: 127.0.0.0/8 allow
+          access-control: 192.168.42.0/24 allow
+          access-control: 0.0.0.0/0 refuse
+          hide-identity: yes
+          hide-version: yes
+          include: "/usr/local/etc/unbound/vrack.conf"
+        forward-zone:
+          name: "."
+          forward-addr: 9.9.9.9
+          forward-addr: 1.1.1.1
+  - service-enable:
+      name: unbound
+      start: true

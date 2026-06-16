@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.18 (16 juin 2026)
+
+=== Ajouté
+
+* `unbound-vrack` — résolveur DNS PRIVÉ du vRack sur un bastion z (écoute
+  sur l'IP vRack + loopback, sert `vrack.quimeo.net`, forwarde le reste).
+  La zone est remplie par `beryl vrack-dns --to <z>` (>= beryl 0.5.66).
+  Config unbound à valider in vivo. Recettes `resolver-vrack` (clients) +
+  helper sshuttle (Mac) à suivre.
+
 == 0.0.17 (14 juin 2026)
 
 === Ajouté
