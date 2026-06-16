@@ -14,6 +14,19 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.20 (16 juin 2026)
+
+=== Ajouté
+
+* `nginx-lite` — variante ALLÉGÉE de nginx (modules minimaux, peu de
+  dépendances), pour servir du statique sans embarquer le nginx plein.
+  Conflicte avec `nginx`. N'active pas le service au démarrage immédiat.
+
+=== Modifié
+
+* `poudriere-nginx` — `requires: nginx-lite` (au lieu d'embarquer `nginx`
+  plein) ; le service démarre après la pose de la conf.
+
 == 0.0.19 (16 juin 2026)
 
 === Ajouté

@@ -6,17 +6,20 @@ description: |
   `http://{{ vrack_ip }}/<jail>-<ports>` (ex. `…/fbsd150amd64-default`).
 
   Utilise la variable built-in `{{ vrack_ip }}` (déclarée une seule fois via
-  `vrack-interface: { ip }`). `requires: vrack-interface` garantit que l'IP est
-  montée AVANT que nginx tente de s'y binder.
+  `vrack-interface: { ip }`). `requires` :
+  * `vrack-interface` → l'IP est montée AVANT que nginx s'y binde ;
+  * `nginx-lite` → on installe la variante ALLÉGÉE (pas besoin du nginx plein
+    pour servir des fichiers statiques) et on l'enrôle SANS la démarrer ; le
+    premier démarrage a lieu ici, APRÈS la pose de la conf (pas de reload à
+    faire).
 
-  ⚠️ Ne PAS combiner avec la recette `nginx`/`web-server` sur la même machine :
-  elles écrivent toutes le `nginx.conf` (builder = serveur de paquets, pas
-  serveur applicatif).
+  ⚠️ Ne PAS combiner avec `nginx`/`web-server` (config concurrente + conflit
+  de paquet `nginx` ↔ `nginx-lite`). Builder = serveur de paquets, pas
+  serveur applicatif.
 requires:
   - vrack-interface
+  - nginx-lite
 steps:
-  - pkg-install:
-      packages: [nginx]
   - file-write:
       path: /usr/local/etc/nginx/nginx.conf
       mode: "0644"

@@ -1,0 +1,15 @@
+recipe: nginx-lite
+description: |
+  Installe nginx-lite (variante allégée de nginx : jeu de modules minimal,
+  bien moins de dépendances) et l'active au boot. À préférer à `nginx` quand
+  on ne sert que du statique (ex. le dépôt poudriere du builder).
+
+  ⚠️ `nginx-lite` CONFLICTE avec `nginx` (plein) : une machine ne peut avoir
+  que l'un des deux. Service rc et chemin de conf identiques (`nginx`,
+  `/usr/local/etc/nginx/`). Ne démarre PAS le service (laisse la recette
+  appelante poser sa conf puis démarrer) — comme `nginx`.
+steps:
+  - pkg-install:
+      packages: [nginx-lite]
+  - service-enable:
+      name: nginx
