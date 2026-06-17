@@ -1,0 +1,96 @@
+recipe: smtp-relay
+description: |
+  Relais SMTP sortant via `dma` (DragonFly Mail Agent). Remplace sendmail
+  par un MTA send-only minuscule qui relaie TOUT le courrier local (cron,
+  root, système) vers un smarthost authentifié → vous recevez enfin la
+  sortie des crons et les alertes. AUCUN démon en écoute (rien à durcir
+  côté réseau).
+
+  TOUTE la config mail vient du COFFRE de la société, jamais en clair dans la
+  recette ni dans git : le COUPLE [utilisateur, mot de passe] (`SMTP_RELAY_USER`
+  + `SMTP_RELAY_PASSWORD`, injecté par `secret-file`) ET la DESTINATION
+  (`SMTP_RELAY_TO`, via `from_env`). Du coup la recette s'utilise NUE.
+
+  Smarthost OVH par défaut (`ssl0.ovh.net:587`, STARTTLS). OVH exige que le
+  `From` soit le compte authentifié → `MASQUERADE` réécrit tout l'envoi vers
+  `SMTP_RELAY_USER`.
+
+  PRÉ-REQUIS — poser la config mail dans le coffre AVANT l'apply :
+
+    beryl env edit <société>
+      [mail]
+      SMTP_RELAY_USER     = 'it@quimeo.net'   # compte d'auth (chez OVH)
+      SMTP_RELAY_PASSWORD = 'le-mot-de-passe'
+      SMTP_RELAY_TO       = 'it@quimeo.fr'    # où VOUS lisez le courrier
+
+  Déclaration — la recette est NUE (tout vient du coffre) :
+
+    apply_recipes:
+      - smtp-relay
+
+  Surcharge de la destination (cas à PLUSIEURS adresses) — forme positionnelle :
+
+    apply_recipes:
+      - smtp-relay: autre@quimeo.fr
+positional: alert_email
+parameters:
+  smarthost:
+    type: string
+    default: "ssl0.ovh.net"
+    description: SMTP de sortie du fournisseur (smarthost).
+  smarthost_port:
+    type: string
+    default: "587"
+    description: Port submission (587 = STARTTLS).
+  alert_email:
+    type: string
+    default: ""
+    from_env: SMTP_RELAY_TO
+    description: Destination du courrier. Défaut = `SMTP_RELAY_TO` du coffre ; surchargeable.
+steps:
+  - pkg-install:
+      packages: [dma]
+  # Le compte (MASQUERADE) vient du coffre → secret-file injecte @@USER@@.
+  - secret-file:
+      path: /usr/local/etc/dma/dma.conf
+      mode: "0644"
+      env:
+        "@@USER@@": SMTP_RELAY_USER
+      content: |
+        SMARTHOST {{ smarthost }}
+        PORT {{ smarthost_port }}
+        AUTHPATH /usr/local/etc/dma/auth.conf
+        SECURETRANSFER
+        STARTTLS
+        MASQUERADE @@USER@@
+  # La paire [user, password] du coffre → auth.conf en 0600.
+  - secret-file:
+      path: /usr/local/etc/dma/auth.conf
+      mode: "0600"
+      env:
+        "@@USER@@": SMTP_RELAY_USER
+        "@@SECRET@@": SMTP_RELAY_PASSWORD
+      content: |
+        @@USER@@|{{ smarthost }}:@@SECRET@@
+  # Redirige sendmail/mail/cron vers dma.
+  - file-write:
+      path: /etc/mail/mailer.conf
+      mode: "0644"
+      content: |
+        sendmail   /usr/local/sbin/dma
+        send-mail  /usr/local/sbin/dma
+        mailq      /usr/local/sbin/dma
+        newaliases /usr/local/sbin/dma
+        rmail      /usr/local/sbin/dma
+  # root → boîte réelle. dma lit /etc/aliases à plat (pas de newaliases).
+  - file-write:
+      path: /etc/aliases
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette smtp-relay).
+        root: {{ alert_email }}
+  # Couper les démons sendmail de base (dma les remplace via mailer.conf).
+  - sysrc-set: { key: sendmail_submit_enable, value: "NO" }
+  - sysrc-set: { key: sendmail_outbound_enable, value: "NO" }
+  - sysrc-set: { key: sendmail_msp_queue_enable, value: "NO" }
+  - service-disable: { name: sendmail, stop: true }

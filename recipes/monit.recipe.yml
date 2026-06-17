@@ -1,0 +1,101 @@
+recipe: monit
+description: |
+  Supervision légère via `monit` : surveille le DISQUE (la hantise —
+  alerte AVANT le « disque plein »), la mémoire, le swap, la charge, et
+  peut surveiller des services. Alerte par mail vers `alert_email`.
+
+  monit envoie ses alertes en SMTP direct via le smarthost (mêmes
+  paramètres que `smtp-relay`). Le COUPLE [utilisateur, mot de passe] vient
+  du COFFRE (`SMTP_RELAY_USER` + `SMTP_RELAY_PASSWORD`), injecté par
+  `secret-file` → jamais dans git. monitrc est en 0600 (monit refuse un
+  control file plus permissif que 0700). Le couple est donc écrit dans 2
+  fichiers 0600 (auth.conf de dma + monitrc), alimentés par les MÊMES
+  variables du coffre.
+
+  CLI : `monit status` / `monit summary` (via socket Unix local — aucun
+  port réseau ouvert). Seuils ajustables par paramètres.
+
+  Sur ZFS, vérifier `/` suffit à détecter le pool plein (tous les datasets
+  partagent l'espace libre du pool).
+
+  PRÉ-REQUIS — même config mail que smtp-relay dans le coffre :
+
+    beryl env edit <société>
+      [mail]
+      SMTP_RELAY_USER     = 'it@quimeo.net'
+      SMTP_RELAY_PASSWORD = 'le-mot-de-passe'
+      SMTP_RELAY_TO       = 'it@quimeo.fr'
+
+  Déclaration — la recette est NUE (tout vient du coffre) :
+
+    apply_recipes:
+      - monit
+
+  Surcharge de la destination (cas à plusieurs adresses) :
+
+    apply_recipes:
+      - monit: autre@quimeo.fr
+positional: alert_email
+parameters:
+  smarthost:
+    type: string
+    default: "ssl0.ovh.net"
+    description: SMTP de sortie du fournisseur (smarthost).
+  smarthost_port:
+    type: string
+    default: "587"
+    description: Port submission (587 = STARTTLS).
+  alert_email:
+    type: string
+    default: ""
+    from_env: SMTP_RELAY_TO
+    description: Destination des alertes. Défaut = `SMTP_RELAY_TO` du coffre ; surchargeable.
+  disk_threshold:
+    type: string
+    default: "80"
+    description: Seuil d'alerte d'occupation disque ET inodes (%).
+  poll_interval:
+    type: string
+    default: "120"
+    description: Intervalle de contrôle monit (secondes).
+steps:
+  - pkg-install:
+      packages: [monit]
+  # monitrc contient la paire SMTP → secret-file (0600), valeurs du coffre.
+  - secret-file:
+      path: /usr/local/etc/monitrc
+      mode: "0600"
+      env:
+        "@@USER@@": SMTP_RELAY_USER
+        "@@SECRET@@": SMTP_RELAY_PASSWORD
+      content: |
+        # Géré par beryl (recette monit).
+        set daemon {{ poll_interval }}
+          with start delay 30
+        set log syslog
+
+        set mailserver {{ smarthost }} port {{ smarthost_port }}
+          username "@@USER@@" password "@@SECRET@@"
+          using tlsv12
+
+        set mail-format {
+          from:    @@USER@@
+          subject: [monit] $HOST : $SERVICE $EVENT
+          message: $DESCRIPTION
+        }
+        set alert {{ alert_email }}
+
+        set httpd unixsocket /var/run/monit.sock
+          allow localhost
+
+        check system $HOST
+          if memory usage > 85% for 3 cycles then alert
+          if swap usage   > 50%              then alert
+          if loadavg (5min) > 4 for 3 cycles  then alert
+
+        check filesystem rootfs with path /
+          if space usage > {{ disk_threshold }}% then alert
+          if inode usage > {{ disk_threshold }}% then alert
+  - service-enable:
+      name: monit
+      start: true

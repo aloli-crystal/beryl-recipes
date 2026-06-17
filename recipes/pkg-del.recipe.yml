@@ -1,0 +1,22 @@
+recipe: pkg-del
+description: |
+  Recette GÉNÉRIQUE : supprime un paquet — ou une liste de paquets. Symétrique
+  de `pkg-add`. Pour retirer proprement des paquets sans recette dédiée.
+
+  Forme CONCISE (positionnelle) — recommandée :
+    - pkg-del: telnet               # un paquet
+    - pkg-del: [telnet, nano]       # une liste (fan-out → une suppression par paquet)
+
+  Forme explicite (équivalente) :
+    - pkg-del: { packages: [telnet, nano] }
+
+  Idempotent : `pkg-remove` ne désinstalle que ce qui est présent.
+positional: packages
+parameters:
+  packages:
+    type: string
+    default: ""
+    description: Paquet (ou liste de paquets) à supprimer.
+steps:
+  - pkg-remove:
+      packages: "{{ packages }}"

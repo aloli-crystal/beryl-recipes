@@ -1,0 +1,25 @@
+recipe: pkg-add
+description: |
+  Recette GÉNÉRIQUE : installe un paquet — ou une liste de paquets — qui n'ont
+  besoin d'AUCUNE configuration supplémentaire. Évite d'écrire une recette
+  dédiée pour chaque paquet trivial (htop, jq, tmux, rsync…).
+
+  Forme CONCISE (positionnelle) — recommandée :
+    - pkg-add: htop                 # un paquet
+    - pkg-add: [htop, jq, tmux]     # une liste (fan-out → une install par paquet)
+
+  Forme explicite (équivalente) :
+    - pkg-add: { packages: [htop, jq, tmux] }
+
+  Idempotent : `pkg-install` lit l'état réel (`pkg info`) et n'installe que le
+  delta manquant. Pour les paquets qui DEMANDENT une config, écrire une recette
+  dédiée (ex. clamav, monit, smtp-relay).
+positional: packages
+parameters:
+  packages:
+    type: string
+    default: ""
+    description: Paquet (ou liste de paquets) à installer, sans config additionnelle.
+steps:
+  - pkg-install:
+      packages: "{{ packages }}"
