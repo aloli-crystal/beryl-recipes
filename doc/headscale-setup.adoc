@@ -194,9 +194,11 @@ Ce script (livré par la recipe `headscale-standby`) fait :
 +
 [source,shell]
 ----
-# Côté beryl, depuis le laptop opérateur :
-beryl apply --recipe dns-record-headscale --account aloli \
-  --target sbg.aloli.net
+# Côté beryl, depuis le laptop opérateur (a les credentials du dns_provider) :
+# pose `headscale.<zone>` A/AAAA → IP du nouveau primary (forward seul,
+# pas de reverse ni rename). Détection d'IP live via le compute provider.
+beryl dns-alias sbg.aloli.net --name headscale
+# (--dry-run d'abord pour vérifier le plan.)
 ----
 +
 La propagation prend ~60 s avec TTL 60.

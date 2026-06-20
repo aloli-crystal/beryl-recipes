@@ -125,7 +125,8 @@ steps:
         # Étapes hors-script à faire côté opérateur :
         #   * basculer la deploy key locale en `Allow write access` côté
         #     GitHub (la clé existante peut être réutilisée, juste cocher),
-        #   * mettre à jour le DNS `headscale.aloli.net` vers cette IP,
+        #   * mettre à jour le DNS `headscale.aloli.net` vers cette IP via
+        #     `beryl dns-alias <ce-host> --name headscale` (forward A/AAAA seul),
         #   * basculer le nœud précédemment primary en `headscale-standby`
         #     (à son retour) pour éviter le split-brain.
 
@@ -185,7 +186,7 @@ steps:
         echo "Étapes restantes côté opérateur :"
         echo "  1. Côté GitHub : Settings → Deploy keys → cocher Allow write access"
         echo "                   pour la clé '${HOSTNAME}' du repo headscale-state."
-        echo "  2. Mettre à jour le DNS headscale.aloli.net vers cette IP."
+        echo "  2. Repointer le DNS : beryl dns-alias ${HOSTNAME} --name headscale"
         echo "  3. Appliquer la recipe 'headscale-backup' sur ce nœud :"
         echo "     beryl apply --recipe headscale-backup ${HOSTNAME}"
         echo "     (le cron de backup remplace le cron pull qu'on vient de supprimer)."
