@@ -95,3 +95,8 @@ steps:
 
   - service-enable:
       name: headscale
+      # start: true (défaut de la primitive, rendu EXPLICITE ici) : le control
+      # plane doit être lancé immédiatement, pas seulement au boot — sinon
+      # `headscale users create` / `headscale-authkey` / `headscale-backup`
+      # qui suivent échoueraient. Idempotent : no-op si déjà lancé.
+      start: true
