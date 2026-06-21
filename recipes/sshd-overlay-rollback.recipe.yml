@@ -1,0 +1,45 @@
+recipe: sshd-overlay-rollback
+description: |
+  ROLLBACK d'urgence de `sshd-overlay-only` : ré-ouvre le port 22 sur les
+  interfaces publiques (sshd ListenAddress 0.0.0.0 + pf pass 22, et retire la
+  règle de blocage posée par overlay-only).
+
+  Déclenché AUTOMATIQUEMENT par le dead-man's-switch (`at`) que pose
+  `sshd-overlay-only` AVANT sa bascule destructive : si l'opérateur perd
+  l'accès après le passage en overlay-only (overlay KO, mauvaise IP, pf qui
+  bloque trop…), ce rollback ré-ouvre 22 au bout de ~2 min → pas de brick,
+  même sans IPMI. Aussi appelable à la main.
+
+  PAS de garde `BERYL_REASON` (≠ `sshd-public-open`) : c'est une recette
+  machine-fired, elle doit pouvoir tourner sans interaction. L'audit
+  `headscale-state-commit` est en DERNIER pour que 22 soit ré-ouvert même si
+  le repo d'état est indisponible.
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a (dead-man's-switch).
+
+requires:
+  - headscale-node
+
+steps:
+  # 1. sshd ré-écoute sur toutes les interfaces (retire la restriction overlay).
+  - sshd-config-set:
+      key: ListenAddress
+      value: "0.0.0.0"
+
+  # 2. Retire la règle de blocage posée par `sshd-overlay-only` (chaîne EXACTE).
+  - pf-rule:
+      state: absent
+      rule: "block in quick on egress proto tcp to port 22  # bloqué public, accessible uniquement via tailscale0"
+
+  # 3. Ré-ouvre 22 en public.
+  - pf-rule:
+      rule: "pass in quick proto tcp to port 22 keep state  # rollback overlay-only (dead-man)"
+
+  # 4. Recharge sshd avec la nouvelle écoute.
+  - service-enable:
+      name: sshd
+      start: true
+
+  # 5. Audit (best-effort, en dernier — 22 est déjà ré-ouvert si ça échoue).
+  - headscale-state-commit:
+      message: "SSHD OVERLAY ROLLBACK host=$(hostname -f) — port 22 public RE-OUVERT (dead-man ou manuel)"

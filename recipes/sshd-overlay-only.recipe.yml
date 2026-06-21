@@ -14,13 +14,19 @@ description: |
   2. Backup `/etc/ssh/sshd_config.before-overlay` posé avant
      modification — l'opérateur peut restaurer manuellement via
      console série si tout casse.
-  3. `auto-close-schedule` qui programme un `at +90 minutes` qui
-     ré-applique `sshd-overlay-rollback` (à venir) — TODO Phase 3+.
-     Pour la première itération, on s'en passe et on testera sur un
-     host non-critique avant déploiement en série.
+  3. DEAD-MAN'S-SWITCH : AVANT toute modif destructive, `auto-close-schedule`
+     programme un `at +2 min` qui ré-applique `sshd-overlay-rollback`
+     (ré-ouvre 22). Si l'opérateur perd l'accès après la bascule, 22 se
+     ré-ouvre tout seul → pas de brick, même sans IPMI. Une fois l'overlay
+     VÉRIFIÉ, l'opérateur annule le rollback avec :
+         beryl apply --recipe sshd-overlay-commit <host> --transport=overlay
+     (à lancer VIA l'overlay = preuve vivante que l'accès marche).
 
-  Pré-requis impératif : le laptop opérateur doit déjà être dans le
-  mesh Headscale (client Tailscale macOS actif et joint).
+  Pré-requis impératifs :
+  * le laptop opérateur doit déjà être dans le mesh Headscale (client
+    Tailscale actif et joint) ;
+  * le binaire `beryl` + sa config doivent être présents sur le host (le
+    job `at` du rollback exécute `beryl apply` localement).
 
   Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a.
 
@@ -30,6 +36,14 @@ requires:
 steps:
   - assert-tailscale-up:
       min_uptime_seconds: 30
+
+  # DEAD-MAN'S-SWITCH — posé AVANT la bascule destructive : si l'opérateur
+  # perd l'accès, `sshd-overlay-rollback` ré-ouvre 22 dans ~2 min. Annulé par
+  # `sshd-overlay-commit` une fois l'overlay confirmé (sinon il se déclenche).
+  - auto-close-schedule:
+      tag: sshd-overlay-deadman
+      after_minutes: 2
+      recipe: sshd-overlay-rollback
 
   - sshd-config-set:
       key: ListenAddress

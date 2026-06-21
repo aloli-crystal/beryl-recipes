@@ -1,0 +1,29 @@
+recipe: sshd-overlay-commit
+description: |
+  Confirme que la bascule `sshd-overlay-only` a réussi : ANNULE le
+  dead-man's-switch (le job `at` qui, sinon, ré-ouvrirait 22 via
+  `sshd-overlay-rollback`).
+
+  À lancer APRÈS avoir vérifié qu'on joint bien le host par l'overlay — donc
+  idéalement VIA l'overlay (preuve vivante que l'accès marche) :
+
+      beryl apply --recipe sshd-overlay-commit <host> --transport=overlay
+
+  Si vous ne POUVEZ PAS lancer cette recette (accès overlay perdu), ne faites
+  RIEN : le rollback se déclenchera tout seul (~2 min) et ré-ouvrira 22.
+
+  Idempotent : si le dead-man a déjà été déclenché ou annulé, `auto-close-cancel`
+  skippe sans erreur.
+
+  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a (dead-man's-switch).
+
+requires:
+  - headscale-node
+
+steps:
+  # Annule le job `at` posé par sshd-overlay-only (MÊME tag).
+  - auto-close-cancel:
+      tag: sshd-overlay-deadman
+
+  - headscale-state-commit:
+      message: "SSHD OVERLAY-ONLY CONFIRME host=$(hostname -f) operateur=$USER — dead-man annule, overlay operationnel"
