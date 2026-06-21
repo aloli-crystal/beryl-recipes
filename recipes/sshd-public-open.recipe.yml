@@ -2,7 +2,7 @@ recipe: sshd-public-open
 description: |
   Ouvre TEMPORAIREMENT le port 22 sur les interfaces publiques. Auto-fermée
   après 1 h via `at`, sauf appel explicite à `sshd-public-close`. Toute
-  ouverture commit une ligne d'audit dans `aloli-aloli/headscale-state`.
+  ouverture commit une ligne d'audit dans `aloli/headscale-state`.
 
   Use case principal :
   * Déploiement Capistrano d'une application Ruby/Rails legacy depuis le
@@ -16,7 +16,7 @@ description: |
   Pré-requis :
   * `BERYL_REASON='raison courte'` doit être posée dans l'env de la
     commande `beryl apply`. La raison apparaît dans l'audit committé.
-  * Le repo `aloli-aloli/headscale-state` doit être cloné sur ce host
+  * Le repo `aloli/headscale-state` doit être cloné sur ce host
     (cf. recipe `headscale-backup` + `headscale-backup-init.sh`).
   * Le binaire `beryl` doit être installé côté host (pour que le job
     `at` d'auto-close puisse s'exécuter).

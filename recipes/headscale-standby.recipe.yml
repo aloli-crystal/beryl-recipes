@@ -11,7 +11,7 @@ description: |
 
   Pré-requis HORS recette (à faire manuellement une fois, cf.
   `doc/headscale-setup.adoc`) :
-  * Le repo GitHub privé `aloli-aloli/headscale-state` existe.
+  * Le repo GitHub privé `aloli/headscale-state` existe.
   * Une deploy key SSH read-only est posée à
     `/root/.ssh/id_ed25519_headscale_state` (chmod 0600).
   * La clé publique est ajoutée côté GitHub (Settings → Deploy keys)
@@ -40,7 +40,7 @@ steps:
         #!/bin/sh
         # Géré par beryl (recipe headscale-standby). Édition manuelle écrasée.
         #
-        # Cron 5 min : git pull du repo `aloli-aloli/headscale-state`
+        # Cron 5 min : git pull du repo `aloli/headscale-state`
         # pour avoir le dump SQL à jour. Le standby reste prêt à un
         # restore immédiat via `headscale-promote.sh`.
 
@@ -89,7 +89,7 @@ steps:
 
         REPO_DIR=/etc/aloli-headscale-state
         DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
-        REPO_URL=git@github.com:aloli-aloli/headscale-state.git
+        REPO_URL=git@github.com:aloli/headscale-state.git
 
         [ -f "${DEPLOY_KEY}" ] || { echo "[init] deploy key absente : ${DEPLOY_KEY}" >&2; exit 1; }
 

@@ -292,7 +292,7 @@ primitives ajoutées dans beryl v0.4.0.
 * `sshd-public-open` (Phase 3b) — ouvre TEMPORAIREMENT le port 22
   public. assert-env-var BERYL_REASON obligatoire,
   auto-close-schedule à 1 h, et chaque ouverture commit une ligne
-  d'audit dans aloli-aloli/headscale-state via
+  d'audit dans aloli/headscale-state via
   headscale-state-commit.
 * `sshd-public-close` (Phase 3b) — referme le port 22 public,
   repasse en overlay-only. Idempotent. Appelée manuellement par
@@ -321,7 +321,7 @@ Trois recettes et un document pour le déploiement Headscale décrit
 dans la roadmap interne `roadmap_beryl_headscale.md`. Architecture :
 1 actif (RBX) + 2 standbys chauds (SBG, GRA), état partagé via dump
 SQL textuel commit toutes les 5 min sur le repo GitHub privé
-`aloli-aloli/headscale-state`.
+`aloli/headscale-state`.
 
 * `headscale-server` — installe headscale + sqlite3, pose la config
   (écoute `127.0.0.1:8080`, TLS délégué à un nginx en frontal),
@@ -329,7 +329,7 @@ SQL textuel commit toutes les 5 min sur le repo GitHub privé
   permettre des snapshots `.backup` sans bloquer le service.
 * `headscale-backup` — sur le primary : cron 5 min qui fait
   `sqlite3 .backup` → `.dump` → `gzip` → `git commit + push` vers
-  `aloli-aloli/headscale-state`. Sérialisé via `flock`, garde-fous
+  `aloli/headscale-state`. Sérialisé via `flock`, garde-fous
   sur pré-requis absents. Inclut un helper one-shot
   `headscale-backup-init.sh` pour le clone initial du repo.
 * `headscale-standby` — sur SBG/GRA : installe headscale **mais

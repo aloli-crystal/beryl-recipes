@@ -2,11 +2,11 @@ recipe: headscale-backup
 description: |
   Backup atomique de la SQLite Headscale toutes les 5 minutes, dump
   textuel compressé puis commit + push vers le repo GitHub privé
-  `aloli-aloli/headscale-state`. RPO 5 min, RTO 15-30 min (failover
+  `aloli/headscale-state`. RPO 5 min, RTO 15-30 min (failover
   manuel par restauration sur un standby).
 
   Pré-requis HORS recette (à faire manuellement une fois) :
-  * Le repo GitHub privé `aloli-aloli/headscale-state` existe.
+  * Le repo GitHub privé `aloli/headscale-state` existe.
   * Une deploy key SSH (read+write) est posée à
     `/root/.ssh/id_ed25519_headscale_state` (chmod 0600).
   * Le repo est cloné dans `/etc/aloli-headscale-state/`.
@@ -39,7 +39,7 @@ steps:
         # Géré par beryl (recipe headscale-backup). Édition manuelle écrasée.
         #
         # Snapshot atomique du SQLite Headscale → dump SQL → gzip →
-        # commit + push vers aloli-aloli/headscale-state.
+        # commit + push vers aloli/headscale-state.
         # Sérialisé via flock pour empêcher deux instances concurrentes.
 
         set -e
@@ -100,7 +100,7 @@ steps:
         # Usage :
         #   1. Générer la deploy key : ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519_headscale_state -N ""
         #   2. Ajouter la clé publique (~/.ssh/id_ed25519_headscale_state.pub) côté GitHub
-        #      au repo aloli-aloli/headscale-state (Settings → Deploy keys → write).
+        #      au repo aloli/headscale-state (Settings → Deploy keys → write).
         #   3. Lancer : /usr/local/sbin/headscale-backup-init.sh
 
         set -e
@@ -108,7 +108,7 @@ steps:
 
         REPO_DIR=/etc/aloli-headscale-state
         DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
-        REPO_URL=git@github.com:aloli-aloli/headscale-state.git
+        REPO_URL=git@github.com:aloli/headscale-state.git
         HOSTNAME="$(hostname -s)"
 
         [ -f "${DEPLOY_KEY}" ] || { echo "[init] deploy key absente : ${DEPLOY_KEY}" >&2; exit 1; }
