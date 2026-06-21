@@ -31,6 +31,6 @@ steps:
       name: tailscaled
 
   - headscale-join:
-      login_server: https://headscale.aloli.net
+      login_server: https://headscale.{{ domain }}
       authkey_env_var: HEADSCALE_AUTHKEY
       ephemeral: false
