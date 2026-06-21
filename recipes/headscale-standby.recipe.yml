@@ -11,7 +11,7 @@ description: |
 
   Pré-requis HORS recette (à faire manuellement une fois, cf.
   `doc/headscale-setup.adoc`) :
-  * Le repo GitHub privé `aloli/headscale-state` existe.
+  * Le repo GitHub privé `{{ company }}/headscale-state` existe.
   * Une deploy key SSH read-only est posée à
     `/root/.ssh/id_ed25519_headscale_state` (chmod 0600).
   * La clé publique est ajoutée côté GitHub (Settings → Deploy keys)
@@ -40,14 +40,14 @@ steps:
         #!/bin/sh
         # Géré par beryl (recipe headscale-standby). Édition manuelle écrasée.
         #
-        # Cron 5 min : git pull du repo `aloli/headscale-state`
+        # Cron 5 min : git pull du repo `{{ company }}/headscale-state`
         # pour avoir le dump SQL à jour. Le standby reste prêt à un
         # restore immédiat via `headscale-promote.sh`.
 
         set -e
         set -u
 
-        REPO_DIR=/etc/aloli-headscale-state
+        REPO_DIR=/etc/headscale-state
         DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
         LOCK_FILE=/var/run/headscale-standby-pull.lock
         UTC_NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -87,9 +87,9 @@ steps:
         set -e
         set -u
 
-        REPO_DIR=/etc/aloli-headscale-state
+        REPO_DIR=/etc/headscale-state
         DEPLOY_KEY=/root/.ssh/id_ed25519_headscale_state
-        REPO_URL=git@github.com:aloli/headscale-state.git
+        REPO_URL=git@github.com:{{ company }}/headscale-state.git
 
         [ -f "${DEPLOY_KEY}" ] || { echo "[init] deploy key absente : ${DEPLOY_KEY}" >&2; exit 1; }
 
@@ -133,7 +133,7 @@ steps:
         set -e
         set -u
 
-        REPO_DIR=/etc/aloli-headscale-state
+        REPO_DIR=/etc/headscale-state
         DUMP_PATH="${REPO_DIR}/headscale-state.sql.gz"
         DB_PATH=/var/db/headscale/db.sqlite
         DB_BACKUP="${DB_PATH}.before-promote.$(date -u +%Y%m%dT%H%M%SZ)"
@@ -177,7 +177,7 @@ steps:
         #    côté GitHub, ces réglages permettent les commits suivants
         #    de `headscale-backup.sh` après bascule de rôle).
         ( cd "${REPO_DIR}" && \
-          git config user.email "headscale@aloli.net" && \
+          git config user.email "headscale@{{ domain }}" && \
           git config user.name  "headscale-${HOSTNAME}" )
 
         echo ""

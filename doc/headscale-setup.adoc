@@ -15,7 +15,7 @@ dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
 [source]
 ----
                      ┌─────────────────────────────────┐
-                     │  aloli/headscale-state    │  ← repo GitHub privé
+                     │  <company>/headscale-state    │  ← repo GitHub privé
                      │  (dépôt de backup, 1 fichier :  │     ne contient PAS
                      │   headscale-state.sql.gz)       │     de secret runtime
                      └────────────┬────────────────────┘
@@ -42,17 +42,25 @@ dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
   down sans coupure réseau ; seuls les changements de roster sont
   gelés pendant le failover.
 
-== Étape 1 — Créer le repo GitHub privé
+== Étape 1 — Créer le repo GitHub privé (UN par société)
 
-Sur https://github.com/organizations/aloli (l'organisation
-opérationnelle, distincte d'aloli-crystal qui héberge le code) :
+Chaque société a SON dépôt d'état, dans SA propre organisation GitHub :
+`<company>/headscale-state` (ex. `aloli/headscale-state`,
+`quimeo/headscale-state`). beryl interpole `<company>` via `{{ company }}`
+dans les recettes — chaque mesh de société est ainsi isolé.
 
-. *Settings → Repositories → New repository*.
-. Nom : `headscale-state`.
-. Visibilité : *Private*.
-. Initialiser avec un README minimal (`README.md` une ligne suffit).
-. Cocher *Add a license: none* (pas pertinent pour un dump de DB).
-. Cliquer *Create repository*.
+En ligne de commande (recommandé) :
+
+[source,shell]
+----
+gh repo create <company>/headscale-state --private \
+  --description "Backup état SQLite headscale (dump SQL gzippé, 1 fichier)" \
+  --add-readme
+----
+
+Ou via l'interface web — https://github.com/organizations/<company> →
+*Settings → Repositories → New repository* : nom `headscale-state`,
+visibilité *Private*, README minimal.
 
 [NOTE]
 ====
@@ -85,7 +93,7 @@ Copier la sortie de `cat` (une ligne `ssh-ed25519 AAAA... headscale-state@rbx`).
 
 == Étape 3 — Ajouter chaque deploy key côté GitHub
 
-Sur https://github.com/aloli/headscale-state/settings/keys :
+Sur https://github.com/<company>/headscale-state/settings/keys :
 
 . *Add deploy key*.
 . Titre : `rbx` (ou `sbg`, `gra`).
@@ -143,7 +151,7 @@ Sur le primary, après application des recettes :
 
 # Inspection :
 tail -f /var/log/headscale-backup.log
-git -C /etc/aloli-headscale-state log --oneline
+git -C /etc/headscale-state log --oneline
 ----
 
 Le cron passera à `*/5 * * * *` automatiquement à partir de la
@@ -160,8 +168,8 @@ Vérification manuelle :
 
 [source,shell]
 ----
-git -C /etc/aloli-headscale-state log --oneline | head -5
-ls -la /etc/aloli-headscale-state/headscale-state.sql.gz
+git -C /etc/headscale-state log --oneline | head -5
+ls -la /etc/headscale-state/headscale-state.sql.gz
 # Le fichier doit être à jour à 5 min près du primary.
 ----
 
@@ -185,7 +193,7 @@ Ce script (livré par la recipe `headscale-standby`) fait :
 * `sysrc headscale_enable=YES && service headscale start`.
 
 . *Côté GitHub*, ouvrir
-  https://github.com/aloli/headscale-state/settings/keys[Settings
+  https://github.com/<company>/headscale-state/settings/keys[Settings
   → Deploy keys] et cocher *Allow write access* sur la clé du
   nouveau primary. Décocher sur l'ancien (qui peut-être ne reviendra
   pas, ou reviendra plus tard comme standby).
@@ -218,7 +226,7 @@ La propagation prend ~60 s avec TTL 60.
 [source,shell]
 ----
 # Voir tous les changements de roster des 7 derniers jours :
-cd /etc/aloli-headscale-state
+cd /etc/headscale-state
 git log --since="7 days ago" --oneline
 
 # Voir le delta entre 2 snapshots :
@@ -271,8 +279,8 @@ headscale preauthkeys create \
 * `--expiration 8760h` : 1 an. À renouveler annuellement.
 ====
 
-Stocker la clé dans les *GitHub Secrets* de l'organisation
-`aloli` sous le nom `HEADSCALE_EPHEMERAL_AUTHKEY`.
+Stocker la clé dans les *GitHub Secrets* de l'organisation de la société
+(`<company>`) sous le nom `HEADSCALE_EPHEMERAL_AUTHKEY`.
 
 === Côté workflow GitHub Actions
 
@@ -298,7 +306,7 @@ Ajouter ces deux steps avant le step de deploy :
 
 À la fin du job, la VM GitHub Actions est détruite ; quelques
 minutes plus tard, Headscale purge automatiquement le node éphémère.
-`git log` du repo `aloli/headscale-state` capture l'ajout
+`git log` du repo `<company>/headscale-state` capture l'ajout
 (commit où apparaît le node) et la purge (commit où il disparaît) —
 audit naturel sans pollution durable.
 
