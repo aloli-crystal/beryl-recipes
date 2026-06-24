@@ -1,0 +1,52 @@
+recipe: web-jail
+description: |
+  Isole une appli web dans une THIN JAIL FreeBSD (raw jail.conf, base FreeBSD
+  partagé en nullfs LECTURE SEULE + couche rw propre). L'appli (user + Ruby +
+  serveur d'appli + code) vit DANS la jail ; le nginx du host reverse-proxy vers
+  elle. Une appli compromise ne peut pas remonter (`../`) lire les secrets d'une
+  autre appli ni du host.
+
+  Paramètres (via `apply_recipes:` du host, forme map) :
+    name        : nom de l'appli = de la jail = de l'user (ex. myapp)
+    index       : 1..254 → IP loopback 127.0.1.<index>
+    port        : port du serveur d'appli (puma) DANS la jail (défaut 3000)
+    server_name : vhost nginx public (ex. app.example.net)
+
+  Ex. dans le host.yml :
+    apply_recipes:
+      - web-jail: { name: myapp, index: 5, port: 3000, server_name: app.example.net }
+
+  Le DÉPLOIEMENT du code se fait ensuite par le CI (SSH host + `jexec <name>`),
+  ou via une primitive `jail-exec`. TLS : recettes nginx/letsencrypt à part.
+  Cf. memory `beryl-jail-isolation.md`.
+
+requires:
+  - base-packages
+
+parameters:
+  name: {}
+  index: {}
+  port:
+    default: "3000"
+  server_name: {}
+
+steps:
+  # 1. Base partagé des jails (/jails/.base), construit/à jour via pkgbase.
+  - jail-base: {}
+
+  # 2. La thin jail elle-même (skeleton rw + nullfs RO + jail.conf + start).
+  - jail-create:
+      name: "{{ name }}"
+      index: "{{ index }}"
+
+  # 3. Runtime + user DANS la jail (le CI déploiera le code ensuite).
+  - jail-exec:
+      jail: "{{ name }}"
+      command: "env ASSUME_ALWAYS_YES=yes pkg install -y ruby && (pw usershow {{ name }} || pw useradd -n {{ name }} -m -s /bin/sh)"
+
+  # 4. nginx du host → proxy vers la jail (loopback).
+  - jail-proxy:
+      name: "{{ name }}"
+      ip: "127.0.1.{{ index }}"
+      port: "{{ port }}"
+      server_name: "{{ server_name }}"
