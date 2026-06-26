@@ -1,0 +1,35 @@
+recipe: client-dataset
+description: |
+  Crée (idempotent) un dataset ZFS isolé pour un client sous
+  `<pool>/clients/<name>` : quota (plafonne données + snapshots = garde-fou
+  multi-tenant), compression (lz4 défaut), recordsize (1M défaut ; 16k si
+  réception InnoDB). Sur un serveur de sauvegarde (pool data raidz2), « ajouter
+  un client » = une ligne ici + `beryl apply`. JAMAIS de destroy implicite.
+
+  Paramètres (via `apply_recipes:` du host, forme map) :
+    pool        : zpool data EXISTANT (ex. tank)
+    name        : nom du client → <pool>/clients/<name>
+    quota       : ex. 2T, 500G
+    recordsize  : défaut 1M (mettre 16k pour un flux DB InnoDB)
+
+  Ex. dans le host.yml d'un serveur de sauvegarde :
+    apply_recipes:
+      - client-dataset: { pool: tank, name: acme,   quota: 2T }
+      - client-dataset: { pool: tank, name: globex, quota: 500G }
+
+  Snapshots GFS (sanoid) + endpoint de réception (rsync/zfs recv) = recette
+  `client-backup` à venir. Cf. spec `adoc/zfs-dataset-per-client-spec.adoc`.
+
+parameters:
+  pool: {}
+  name: {}
+  quota: {}
+  recordsize:
+    default: "1M"
+
+steps:
+  - zfs-dataset:
+      pool: "{{ pool }}"
+      name: "{{ name }}"
+      quota: "{{ quota }}"
+      recordsize: "{{ recordsize }}"
