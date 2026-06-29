@@ -1,24 +1,52 @@
 recipe: poudriere-nginx
 description: |
-  nginx qui SERT le dépôt poudriere du builder, bindé sur l'IP vRack
-  UNIQUEMENT (jamais public — pas besoin de toucher à pf). Racine = la sortie
-  poudriere (`/usr/local/poudriere/data/packages`) ; les clients pointent
-  `http://{{ vrack_ip }}/<jail>-<ports>` (ex. `…/fbsd150amd64-default`).
+  nginx qui SERT le dépôt poudriere d'un builder de paquets. DEUX faces sur le
+  même nginx (un seul `nginx.conf`, source unique) :
 
-  Utilise la variable built-in `{{ vrack_ip }}` (déclarée une seule fois via
-  `vrack-interface: { ip }`). `requires` :
-  * `vrack-interface` → l'IP est montée AVANT que nginx s'y binde ;
-  * `nginx-lite` → on installe la variante ALLÉGÉE (pas besoin du nginx plein
-    pour servir des fichiers statiques) et on l'enrôle SANS la démarrer ; le
-    premier démarrage a lieu ici, APRÈS la pose de la conf (pas de reload à
-    faire).
+  * face PRIVÉE vRack (HTTP), bindée sur `{{ vrack_ip }}` UNIQUEMENT — les
+    clients vRack pointent `http://{{ vrack_ip }}/fbsd150amd64-default`.
+  * face PUBLIQUE (HTTPS), bindée sur `{{ public_ip }}`, `server_name
+    {{ public_domain }}` — les clients pointent `https://{{ public_domain }}/${ABI}`.
+    Même dépôt, même signature ; seul le nom et le transport changent. L'URL
+    `${ABI}` (que `pkg` détend en `FreeBSD:15:amd64`) est mappée en nginx sur la
+    sortie poudriere, SANS symlink — pour FreeBSD 16, ajouter un `location`
+    jumeau, clients inchangés.
 
-  ⚠️ Ne PAS combiner avec `nginx`/`web-server` (config concurrente + conflit
-  de paquet `nginx` ↔ `nginx-lite`). Builder = serveur de paquets, pas
-  serveur applicatif.
+  Tout ce qui est spécifique au déploiement est un PARAMÈTRE (cf. `parameters:`) :
+  `public_domain`, `public_ip`, `vrack_server_name`. Aucune valeur en dur.
+
+  `requires` :
+  * `vrack-interface` → l'IP vRack est montée AVANT que nginx s'y binde ;
+  * `nginx-lite` → variante allégée (suffit pour des fichiers statiques),
+    elle embarque `http_ssl_module` ;
+  * `acme` → acme.sh (client ACME shell, sans Python) + cron de renouvellement.
+
+  ⚠️ ORDRE DE BOOTSTRAP : le bloc `:443` référence le certificat posé par acme.sh
+  sous `/usr/local/etc/ssl/acme/<public_domain>/`. Il faut donc ÉMETTRE le
+  certificat AVANT le premier apply de cette recette (geste manuel unique, cf.
+  recette `acme`), pour le domaine passé en `public_domain` :
+    D=<public_domain>
+    acme.sh --issue --standalone --server letsencrypt -d "$D" --home /usr/local/etc/acme.sh
+    acme.sh --install-cert -d "$D" --home /usr/local/etc/acme.sh \
+      --fullchain-file "/usr/local/etc/ssl/acme/$D/fullchain.pem" \
+      --key-file       "/usr/local/etc/ssl/acme/$D/privkey.pem" \
+      --reloadcmd "service nginx reload"
+  (`--standalone` occupe brièvement le port 80 : arrêter nginx le temps de
+  l'émission.) Le renouvellement est ensuite porté par le cron de `acme`.
+
+  ⚠️ Ne PAS combiner avec `nginx`/`web-server` (config concurrente + conflit de
+  paquet `nginx` ↔ `nginx-lite`). Builder = serveur de paquets, pas applicatif.
+
+parameters:
+  public_domain: {}
+  public_ip: {}
+  vrack_server_name: {}
+
 requires:
   - vrack-interface
   - nginx-lite
+  - acme
+
 steps:
   - file-write:
       path: /usr/local/etc/nginx/nginx.conf
@@ -33,15 +61,38 @@ steps:
             sendfile      on;
             keepalive_timeout 65;
 
+            # --- Face PRIVÉE vRack (HTTP) — invisible côté public ---
             server {
-                # bind sur l'IP vRack SEULEMENT → invisible côté public
                 listen      {{ vrack_ip }}:80;
-                server_name pkg.vrack.quimeo.net;
+                server_name {{ vrack_server_name }};
 
-                # racine = dépôts poudriere ; URL client :
-                #   http://{{ vrack_ip }}/fbsd150amd64-default
                 root      /usr/local/poudriere/data/packages;
                 autoindex on;
+            }
+
+            # --- Face PUBLIQUE (HTTPS) ---
+            # :80 public → redirection vers HTTPS. (Émission/renouvellement ACME
+            # par acme.sh ; cf. recette `acme`.)
+            server {
+                listen      {{ public_ip }}:80;
+                server_name {{ public_domain }};
+                return 301 https://$host$request_uri;
+            }
+
+            server {
+                listen      {{ public_ip }}:443 ssl;
+                server_name {{ public_domain }};
+
+                ssl_certificate     /usr/local/etc/ssl/acme/{{ public_domain }}/fullchain.pem;
+                ssl_certificate_key /usr/local/etc/ssl/acme/{{ public_domain }}/privkey.pem;
+                ssl_protocols       TLSv1.2 TLSv1.3;
+
+                # URL pérenne : pkg détend ${ABI} en FreeBSD:15:amd64,
+                # mappé sur la sortie poudriere sans symlink.
+                location /FreeBSD:15:amd64/ {
+                    alias     /usr/local/poudriere/data/packages/fbsd150amd64-default/;
+                    autoindex on;
+                }
             }
         }
   - service-enable:

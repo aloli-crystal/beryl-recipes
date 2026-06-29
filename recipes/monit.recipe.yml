@@ -22,9 +22,9 @@ description: |
 
     beryl env edit <société>
       [mail]
-      SMTP_RELAY_USER     = 'it@quimeo.net'
+      SMTP_RELAY_USER     = 'relay@example.com'
       SMTP_RELAY_PASSWORD = 'le-mot-de-passe'
-      SMTP_RELAY_TO       = 'it@quimeo.fr'
+      SMTP_RELAY_TO       = 'you@example.com'
 
   Déclaration — la recette est NUE (tout vient du coffre) :
 
@@ -34,7 +34,7 @@ description: |
   Surcharge de la destination (cas à plusieurs adresses) :
 
     apply_recipes:
-      - monit: autre@quimeo.fr
+      - monit: autre@example.com
 positional: alert_email
 parameters:
   smarthost:

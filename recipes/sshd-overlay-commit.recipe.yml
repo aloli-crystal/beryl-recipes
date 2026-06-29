@@ -15,7 +15,7 @@ description: |
   Idempotent : si le dead-man a déjà été déclenché ou annulé, `auto-close-cancel`
   skippe sans erreur.
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a (dead-man's-switch).
+  Cf. doc headscale Phase 3a (dead-man's-switch).
 
 requires:
   - headscale-node

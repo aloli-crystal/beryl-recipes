@@ -8,7 +8,7 @@ description: |
   * automatiquement par le job `at` posé par `sshd-public-open`
     (auto-fermeture à 1 h).
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3b.
+  Cf. doc headscale Phase 3b.
 
 requires:
   - headscale-node

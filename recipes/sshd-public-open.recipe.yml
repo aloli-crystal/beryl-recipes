@@ -21,7 +21,7 @@ description: |
   * Le binaire `beryl` doit être installé côté host (pour que le job
     `at` d'auto-close puisse s'exécuter).
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3b.
+  Cf. doc headscale Phase 3b.
 
 requires:
   - headscale-node

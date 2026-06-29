@@ -13,7 +13,7 @@ description: |
   * Le rôle standby (clone en lecture seule) — utiliser
     `headscale-standby`.
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 1a.
+  Cf. doc headscale Phase 1a.
 
 requires:
   - base-packages

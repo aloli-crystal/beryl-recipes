@@ -19,9 +19,9 @@ description: |
 
     beryl env edit <société>
       [mail]
-      SMTP_RELAY_USER     = 'it@quimeo.net'   # compte d'auth (chez OVH)
+      SMTP_RELAY_USER     = 'relay@example.com'   # compte d'auth (chez OVH)
       SMTP_RELAY_PASSWORD = 'le-mot-de-passe'
-      SMTP_RELAY_TO       = 'it@quimeo.fr'    # où VOUS lisez le courrier
+      SMTP_RELAY_TO       = 'you@example.com'    # où VOUS lisez le courrier
 
   Déclaration — la recette est NUE (tout vient du coffre) :
 
@@ -31,7 +31,7 @@ description: |
   Surcharge de la destination (cas à PLUSIEURS adresses) — forme positionnelle :
 
     apply_recipes:
-      - smtp-relay: autre@quimeo.fr
+      - smtp-relay: autre@example.com
 positional: alert_email
 parameters:
   smarthost:

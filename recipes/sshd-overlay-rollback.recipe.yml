@@ -15,7 +15,7 @@ description: |
   `headscale-state-commit` est en DERNIER pour que 22 soit ré-ouvert même si
   le repo d'état est indisponible.
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a (dead-man's-switch).
+  Cf. doc headscale Phase 3a (dead-man's-switch).
 
 requires:
   - headscale-node

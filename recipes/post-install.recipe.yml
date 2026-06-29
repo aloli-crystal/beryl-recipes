@@ -1,5 +1,5 @@
 recipe: post-install
-description: Post-install Aloli minimal pour FreeBSD (recette agrégat).
+description: Post-install minimal pour FreeBSD (recette agrégat).
 requires:
   - freebsd-updates
   - base-packages

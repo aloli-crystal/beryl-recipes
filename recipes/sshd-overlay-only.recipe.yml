@@ -28,7 +28,7 @@ description: |
   * le binaire `beryl` + sa config doivent être présents sur le host (le
     job `at` du rollback exécute `beryl apply` localement).
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3a.
+  Cf. doc headscale Phase 3a.
 
 requires:
   - headscale-node

@@ -21,7 +21,7 @@ description: |
   * Audit naturel : `git log --oneline` donne la chronologie des
     changements du control plane.
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 1a.
+  Cf. doc headscale Phase 1a.
 
 requires:
   - headscale-server

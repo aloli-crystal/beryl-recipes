@@ -1,5 +1,5 @@
 recipe: web-server
-description: Pile serveur web Aloli (Ruby + nginx + certbot).
+description: Pile serveur web (Ruby + nginx + certbot).
 requires:
   - ruby
   - nginx

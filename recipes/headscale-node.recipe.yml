@@ -1,6 +1,6 @@
 recipe: headscale-node
 description: |
-  Joint un host au mesh Headscale géré par `headscale.aloli.net`. Cette
+  Joint un host au mesh Headscale géré par `headscale.example.net`. Cette
   recette transforme un host beryl en *node* du mesh : tailscaled est
   installé, activé, et fait son `tailscale up` une fois (idempotent).
 
@@ -9,7 +9,7 @@ description: |
     `headscale preauthkeys create --user beryl --reusable=false`) et
     est exposée à l'apply via la variable d'env `HEADSCALE_AUTHKEY`.
     L'usage standard : stocker la clé dans le coffre `secrets` de la
-    société (cf. `beryl env edit aloli`), beryl l'injecte dans ENV
+    société (cf. `beryl env edit <société>`), beryl l'injecte dans ENV
     via `EnvFile#apply_to_env(account, "headscale")` au moment de
     l'apply.
 
@@ -18,7 +18,7 @@ description: |
   c'est le runner lui-même qui fait `tailscale up --ephemeral`, pas
   besoin d'apply beryl.
 
-  Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 2.
+  Cf. doc headscale Phase 2.
 
 requires:
   - base-packages

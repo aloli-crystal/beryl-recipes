@@ -1,5 +1,5 @@
 recipe: base-packages
-description: Packages de base communs à tout serveur FreeBSD Aloli.
+description: Packages de base communs à tout serveur FreeBSD.
 steps:
   - pkg-install:
       packages: [bash, git, curl]

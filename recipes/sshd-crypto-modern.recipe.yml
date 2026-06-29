@@ -1,8 +1,8 @@
 recipe: sshd-crypto-modern
 description: |
-  Algorithmes SSH modernes, calqués sur la référence adi.quimeo.net
-  + mlkem768x25519-sha256 (kex post-quantique d'OpenSSH 10, absent du 9.3
-  d'adi). Supprime tout ce que ssh-audit marque [fail]/[warn] :
+  Algorithmes SSH modernes (durcissement standard ssh-audit)
+  + mlkem768x25519-sha256 (kex post-quantique d'OpenSSH 10, absent d'OpenSSH
+  9.x). Supprime tout ce que ssh-audit marque [fail]/[warn] :
   ecdh-sha2-nistp* (courbes NSA), hmac-sha1 (SHA-1 cassé), umac-64, MACs
   encrypt-and-MAC. Pas de chacha20-poly1305 (mitigation Terrapin totale,
   comme adi). Pas de diffie-hellman-group-exchange-sha256 (le fallback GEX

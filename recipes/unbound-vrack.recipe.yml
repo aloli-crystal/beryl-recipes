@@ -2,7 +2,7 @@ recipe: unbound-vrack
 description: |
   `unbound` = résolveur DNS PRIVÉ du vRack, sur un bastion z. Écoute
   UNIQUEMENT sur l'IP vRack (`vrack_ip`) + loopback (jamais public) ; sert la
-  zone `vrack.quimeo.net` (le fichier `vrack.conf` est rempli par
+  zone `vrack.example.net` (le fichier `vrack.conf` est rempli par
   `beryl vrack-dns --to <ce z>`) et forwarde le reste vers des résolveurs
   publics.
 
