@@ -14,6 +14,30 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.25 (2 juillet 2026)
+
+Lot « intégrité anti-corruption » pour le parc de production à mémoire
+DDR5 On-Die ECC (pas d'ECC sideband — la détection de corruption repose
+sur les checksums, cf. runbook `beryl/adoc/burnin-memory-provisioning.adoc`).
+
+=== Ajouté
+
+* `zfs-scrub` — hygiène d'intégrité ZFS : scrub périodique par cron (défaut
+  dimanche 03h00, `scrub_schedule`) + surveillance santé pools/disques
+  (`zpool status -x` + `smartctl -H`) exposée à monit via un `check program`
+  déposé dans `/usr/local/etc/monit.d/zfs.conf`. `requires: monit` (un scrub
+  sans alerte ne sert à rien). Recharge monit après dépôt du check.
+
+=== Modifié
+
+* `postgresql` — `--data-checksums` activé PAR DÉFAUT via le nouveau paramètre
+  `initdb_flags` (posé en `postgresql_initdb_flags` avant l'`initdb`). Détecte
+  les pages corrompues à la lecture. N'agit qu'à l'initdb d'un cluster neuf ;
+  cluster existant → `pg_checksums --enable` hors-ligne.
+* `monit` — `include /usr/local/etc/monit.d/*.conf` en fin de `monitrc` :
+  permet aux autres recettes (ex. `zfs-scrub`) d'ajouter leurs propres checks.
+  Glob vide toléré si le dossier n'existe pas encore.
+
 == 0.0.24 (16 juin 2026)
 
 === Modifié
