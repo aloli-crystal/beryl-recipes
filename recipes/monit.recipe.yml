@@ -96,6 +96,10 @@ steps:
         check filesystem rootfs with path /
           if space usage > {{ disk_threshold }}% then alert
           if inode usage > {{ disk_threshold }}% then alert
+
+        # Checks additionnels déposés par d'autres recettes (ex. zfs-scrub).
+        # Glob vide toléré si le dossier n'existe pas encore.
+        include /usr/local/etc/monit.d/*.conf
   - service-enable:
       name: monit
       start: true

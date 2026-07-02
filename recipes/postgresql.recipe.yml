@@ -5,6 +5,17 @@ description: |
   installe `server` ET `client` ; `only: server` (ou `client`) pour
   restreindre. `initdb` est lancé avant le start (idempotent) — PostgreSQL
   l'exige, contrairement à MariaDB.
+
+  INTÉGRITÉ — `--data-checksums` est activé par défaut (`initdb_flags`).
+  Chaque page de données porte alors un checksum vérifié à chaque lecture :
+  une page corrompue (bit-flip en RAM avant écriture, ou pourriture disque)
+  est DÉTECTÉE au lieu d'être servie en silence. Indispensable sur un parc
+  à mémoire DDR5 On-Die ECC (sans ECC sideband) — cf. recette `zfs-scrub`
+  pour le pendant côté ZFS.
+
+  ATTENTION : `--data-checksums` n'agit qu'à l'`initdb` (cluster NEUF). Sur
+  un cluster DÉJÀ initialisé sans checksums, activez-les hors-ligne avec
+  `pg_checksums --enable -D <datadir>` (serveur arrêté).
 parameters:
   version:
     type: string
@@ -14,11 +25,23 @@ parameters:
     type: string
     default: ""
     description: "`server` ou `client` pour restreindre ; vide = les deux."
+  initdb_flags:
+    type: string
+    default: "--encoding=utf-8 --lc-collate=C --data-checksums"
+    description: >-
+      Flags passés à `initdb` via `postgresql_initdb_flags`. Défaut =
+      défaut FreeBSD + `--data-checksums` (détection de corruption de page).
 steps:
   - pkg-versioned:
       base: postgresql
       version: "{{ version }}"
       only: "{{ only }}"
+  # Doit précéder `postgresql-initdb` : `service postgresql initdb` lit
+  # `postgresql_initdb_flags` dans rc.conf. Sur un client-only (initdb
+  # skippé), la variable reste simplement inerte.
+  - sysrc-set:
+      key: postgresql_initdb_flags
+      value: "{{ initdb_flags }}"
   - postgresql-initdb: {} # se skippe si pas de serveur (only: client)
   - service-enable:
       name: postgresql

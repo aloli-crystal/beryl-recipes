@@ -1,0 +1,93 @@
+recipe: zfs-scrub
+description: |
+  Hygiène ZFS d'intégrité : scrub périodique + surveillance de la santé
+  des pools et des disques (SMART), avec alerte via monit.
+
+  POURQUOI : sur un parc à mémoire DDR5 On-Die ECC (sans ECC sideband, cf.
+  serveurs de prod), la détection de corruption repose sur les checksums.
+  Le scrub relit TOUT et RÉPARE depuis la redondance (mirror/raidz) ; sans
+  lui, une corruption silencieuse dort jusqu'à la lecture du bloc — souvent
+  trop tard. Couplé aux `--data-checksums` de la recette `postgresql`,
+  c'est la parade au bit-flip non-ECC.
+
+  ALERTE : dépose un `check program` dans `/usr/local/etc/monit.d/` (inclus
+  par la recette `monit`). `zpool status -x` + `smartctl -H` à chaque
+  contrôle ; toute anomalie → mail via monit. `requires: monit` garantit
+  qu'une dérive est SIGNALÉE — un scrub sans alerte ne sert à rien.
+
+  Le scrub passe par cron (défaut : dimanche 03h00). `smartctl -H` ne lit
+  que le drapeau de santé (instantané, pas de self-test).
+requires:
+  - monit
+parameters:
+  scrub_schedule:
+    type: string
+    default: "0 3 * * 0"
+    description: Planification cron du scrub (défaut dimanche 03h00).
+  check_cycles:
+    type: string
+    default: "15"
+    description: Intervalle du contrôle santé monit, en nombre de cycles monit.
+steps:
+  - pkg-install:
+      packages: [smartmontools]
+
+  - file-write:
+      path: /usr/local/sbin/zfs-scrub-all.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette zfs-scrub). Scrub de TOUS les pools ZFS.
+        set -u
+        for p in $(zpool list -H -o name 2>/dev/null); do
+          echo "$(date -u +%FT%TZ) scrub $p"
+          zpool scrub "$p"
+        done
+
+  - file-write:
+      path: /usr/local/sbin/zfs-health.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette zfs-scrub). Santé ZFS + SMART, pour monit.
+        # exit 0 = sain ; exit 1 = anomalie (monit alerte avec cette sortie).
+        set -u
+        rc=0
+
+        pools=$(zpool status -x 2>&1)
+        if [ "$pools" != "all pools are healthy" ]; then
+          rc=1
+          echo "ZFS: $pools"
+        fi
+
+        for d in $(sysctl -n kern.disks 2>/dev/null); do
+          case "$d" in cd*|md*|fd*) continue ;; esac
+          h=$(smartctl -H /dev/"$d" 2>/dev/null | grep -iE 'overall-health|SMART Health Status')
+          case "$h" in
+            *PASSED*|*OK*|"") : ;;
+            *) rc=1; echo "SMART $d: $h" ;;
+          esac
+        done
+
+        [ "$rc" -eq 0 ] && echo "OK : pools sains, SMART OK"
+        exit $rc
+
+  - cron-entry:
+      user: root
+      entry: "{{ scrub_schedule }} /usr/local/sbin/zfs-scrub-all.sh >>/var/log/zfs-scrub.log 2>&1"
+
+  - file-write:
+      path: /usr/local/etc/monit.d/zfs.conf
+      mode: "0644"
+      owner: "root:wheel"
+      content: |
+        # Géré par beryl (recette zfs-scrub). Inclus par monitrc.
+        check program zfs-health with path "/usr/local/sbin/zfs-health.sh"
+          every {{ check_cycles }} cycles
+          if status != 0 then alert
+
+  # monit relit sa conf → prend en compte le nouveau check tout de suite.
+  - service-reload:
+      name: monit
