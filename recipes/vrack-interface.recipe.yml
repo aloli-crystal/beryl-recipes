@@ -11,14 +11,20 @@ description: |
   igb1, bce1…). Idempotent même quand l'IP vRack est déjà posée. Si la
   détection est ambiguë/vide, netif échoue → précisez `iface:` à la main.
 
-  `ip` est OBLIGATOIRE et propre à chaque host → déclarez-le PAR host :
+  `ip` vaut `{{ vrack_ip }}` par défaut → l'IP privée est lue dans le bloc
+  `vrack: { ip: … }` du host (SOURCE UNIQUE, pas de doublon). Il suffit donc
+  de lister la recette nue ; elle échoue explicitement si le host n'a pas de
+  bloc vRack. Surchargeable si besoin :
 
-    # auto-détection du NIC (recommandé)
+    # cas courant : l'IP vient du bloc `vrack:` du host
     apply_recipes:
-      - vrack-interface: { ip: 192.168.42.1 }
-    # NIC explicite (si auto échoue)
+      - vrack-interface
+    # NIC explicite (si l'auto-détection échoue)
     apply_recipes:
-      - vrack-interface: { ip: 192.168.42.11, iface: ixl1 }
+      - vrack-interface: { iface: ixl1 }
+    # IP explicite (rare — sinon corrigez `vrack.ip`)
+    apply_recipes:
+      - vrack-interface: { ip: 192.168.42.11 }
 
   Pré-requis : le host doit être rattaché au vRack côté OVH (l'interface
   doit être `status: active`), sinon l'IP est posée mais sans connectivité.
@@ -29,8 +35,8 @@ parameters:
     description: Interface vRack (2ᵉ NIC sans IP publique). `auto` = détection.
   ip:
     type: string
-    default: ""
-    description: IP privée du host sur le vRack (obligatoire).
+    default: "{{ vrack_ip }}"
+    description: IP privée du host sur le vRack (défaut = `vrack.ip` du host).
   netmask:
     type: string
     default: "255.255.255.0"
