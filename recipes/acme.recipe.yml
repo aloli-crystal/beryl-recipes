@@ -1,0 +1,30 @@
+recipe: acme
+description: |
+  Installe acme.sh — client ACME/Let's Encrypt en shell POSIX pur, SANS
+  Python (choix de parc : pas de Python sur les serveurs). Remplace
+  `letsencrypt` (certbot). `socat` est requis pour le mode `--standalone`.
+
+  Le renouvellement est porté par le cron ci-dessous : acme.sh renouvelle
+  les certificats arrivant à échéance et exécute le `reloadcmd` enregistré
+  par domaine au moment du `--install-cert` (ex. `service nginx reload`).
+  Home acme.sh fixé à `/usr/local/etc/acme.sh` (cohérent issue ↔ cron).
+
+  L'ÉMISSION initiale d'un certificat se fait via la primitive `acme-cert`
+  (idempotente : émet au 1ᵉʳ apply, skip tant que le cert reste valide), ex. :
+    - acme-cert:
+        domains: [pkg.example.com]
+        fullchain: /usr/local/etc/ssl/acme/pkg/fullchain.pem
+        key:       /usr/local/etc/ssl/acme/pkg/privkey.pem
+        reloadcmd: "service nginx reload"
+        stop_service: nginx     # libère le port 80 pour --standalone
+  (le `--standalone` occupe brièvement le port 80 : `stop_service` arrête le
+  service le temps de l'émission, ou `method: webroot` pour éviter la coupure.)
+  Le `reloadcmd` enregistré est rejoué par le cron ci-dessous au renouvellement.
+requires:
+  - base-packages
+steps:
+  - pkg-install:
+      packages: [acme.sh, socat]
+  - cron-entry:
+      user: root
+      entry: "0 0,12 * * * /usr/local/sbin/acme.sh --cron --home /usr/local/etc/acme.sh >/dev/null 2>&1"
