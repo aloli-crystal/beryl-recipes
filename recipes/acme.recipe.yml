@@ -20,6 +20,23 @@ description: |
   (le `--standalone` occupe brièvement le port 80 : `stop_service` arrête le
   service le temps de l'émission, ou `method: webroot` pour éviter la coupure.)
   Le `reloadcmd` enregistré est rejoué par le cron ci-dessous au renouvellement.
+
+  WILDCARD / SANS COUPURE — `method: dns` (validation DNS-01) : aucun port
+  n'est mobilisé (donc zéro coupure, même au renouvellement) et c'est la
+  SEULE méthode qui gère les wildcards. Ex. :
+    - acme-cert:
+        domains: [example.com, "*.example.com"]   # le wildcard NE couvre PAS l'apex
+        method: dns
+        dns_provider: dns_ovh                     # plugin dnsapi d'acme.sh
+        fullchain: /usr/local/etc/ssl/acme/wild/fullchain.pem
+        key:       /usr/local/etc/ssl/acme/wild/privkey.pem
+        reloadcmd: "service nginx reload"
+  Les credentials de l'API DNS sont pris dans les credentials de la SOCIÉTÉ
+  (beryl les traduit vers les noms attendus par acme.sh : `OVH_APPLICATION_KEY`
+  → `OVH_AK`, etc.) — rien à saisir dans la recette. La consumer key OVH doit
+  porter les droits `/domain/zone*`. acme.sh persiste ensuite ces credentials :
+  le cron ci-dessous renouvelle seul, sans intervention ni coupure.
+  ⚠️ Le wildcard ne couvre qu'UN niveau (`a.example.com` oui, `a.b.example.com` non).
 requires:
   - base-packages
 steps:
