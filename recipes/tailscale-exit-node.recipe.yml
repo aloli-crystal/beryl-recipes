@@ -1,0 +1,43 @@
+recipe: tailscale-exit-node
+description: |
+  Fait d'un node du mesh Headscale/Tailscale un EXIT-NODE : il route TOUT le
+  trafic sortant des autres nodes (navigation chiffrée sur wifi public, sortie
+  par une IP fixe…). Un appareil client bascule alors « utiliser cet exit-node »
+  dans l'app Tailscale.
+
+  Chaîne (FreeBSD — tailscale n'y configure PAS le NAT lui-même, contrairement
+  à iptables sur Linux) :
+  * `ip-forward` : le host relaie les paquets (v4 + v6) ;
+  * NAT sortant pf sur l'interface publique, pour la plage CGNAT Tailscale
+    (v4 `100.64.0.0/10`, v6 `fd7a:115c:a1e0::/48`) ;
+  * `pass in on tailscale0` : laisse entrer le trafic des autres nodes ;
+  * `tailscale-advertise --advertise-exit-node`.
+
+  `egress` = interface de sortie ; défaut = le groupe pf `egress` (l'interface
+  de la route par défaut), portable d'un host à l'autre.
+
+  ⚠️ APRÈS l'apply, APPROUVER la route côté Headscale (sinon l'exit n'est pas
+  utilisable) : `headscale routes list` puis `headscale routes enable -r <id>`,
+  ou une ACL `autoApprovers.exitNode`.
+
+  ⚠️ Ne combinez pas avec `firewall-pf` (qui possède tout pf.conf) : cette
+  recette ajoute des blocs gérés via `pf-rule`.
+requires:
+  - headscale-node
+parameters:
+  egress:
+    type: string
+    default: egress
+    description: Interface (ou groupe) pf de sortie. Défaut = groupe `egress`.
+steps:
+  - ip-forward:
+  - pf-rule:
+      nat: true
+      rule: "nat on {{ egress }} inet from 100.64.0.0/10 to any -> ({{ egress }})"
+  - pf-rule:
+      nat: true
+      rule: "nat on {{ egress }} inet6 from fd7a:115c:a1e0::/48 to any -> ({{ egress }})"
+  - pf-rule:
+      rule: "pass in quick on tailscale0 keep state  # exit-node : trafic des autres nodes"
+  - tailscale-advertise:
+      exit_node: true

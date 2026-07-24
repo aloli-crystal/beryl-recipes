@@ -14,6 +14,25 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.26 (13 juillet 2026)
+
+Accès distant — solution 1/3 (mesh Tailscale/Headscale). WireGuard dédié et
+utilisateur tunnel SSH suivront. Recettes en DRY-RUN (validation in-vivo en
+attente d'un host de test, hors `bi`).
+
+=== Ajouté
+
+* `tailscale-exit-node` — fait d'un node un exit-node (route tout le trafic
+  sortant des autres nodes). Chaîne `ip-forward` + NAT pf sortant (plages CGNAT
+  Tailscale v4 `100.64.0.0/10` + v6 `fd7a:115c:a1e0::/48`) + `pass in on
+  tailscale0` + `tailscale-advertise --advertise-exit-node`. `requires:
+  [headscale-node]`. Route à approuver côté Headscale après apply. Requiert
+  beryl >= 0.6.18 (primitives `ip-forward`, `tailscale-advertise`, `pf-rule`
+  mode `nat`).
+* `tailscale-subnet-router` — annonce un/des CIDR de LAN au mesh à travers le
+  node (`ip-forward` + `pass in on tailscale0` + `--advertise-routes`).
+  `routes` obligatoire ; retour à gérer côté LAN (route ou NAT, cf. fiche).
+
 == 0.0.25 (2 juillet 2026)
 
 Lot « intégrité anti-corruption » pour le parc de production à mémoire

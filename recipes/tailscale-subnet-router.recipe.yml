@@ -1,0 +1,38 @@
+recipe: tailscale-subnet-router
+description: |
+  Fait d'un node un SUBNET-ROUTER : il annonce un ou plusieurs CIDR d'un LAN
+  (maison, bureau) pour que les autres nodes du mesh atteignent ces réseaux à
+  travers lui — sans installer Tailscale sur chaque machine du LAN.
+
+  Chaîne :
+  * `ip-forward` : relaie les paquets (v4 + v6) ;
+  * `pass in on tailscale0` : laisse entrer le trafic des autres nodes ;
+  * `tailscale-advertise --advertise-routes=<routes>`.
+
+  `routes` est OBLIGATOIRE (ex. `192.168.1.0/24` ou plusieurs séparés par des
+  virgules). ⚠️ APRÈS l'apply, APPROUVER les routes côté Headscale :
+  `headscale routes enable -r <id>` (ou ACL `autoApprovers.routes`).
+
+  RETOUR du trafic : les machines du LAN doivent savoir répondre à la plage
+  Tailscale `100.64.0.0/10`. Deux options :
+  * ajouter sur la passerelle du LAN une route `100.64.0.0/10` via ce host
+    (propre, pas de NAT) ; OU
+  * NAT-er le trafic mesh vers l'IP LAN de ce host — ajoutez alors une étape :
+      - pf-rule:
+          nat: true
+          rule: "nat on <iface_lan> from 100.64.0.0/10 to <cidr_lan> -> (<iface_lan>)"
+
+  ⚠️ Ne combinez pas avec `firewall-pf` (blocs gérés via `pf-rule`).
+requires:
+  - headscale-node
+parameters:
+  routes:
+    type: string
+    default: ""
+    description: CIDR du/des LAN à annoncer (ex. "192.168.1.0/24,10.0.0.0/24"). Obligatoire.
+steps:
+  - ip-forward:
+  - pf-rule:
+      rule: "pass in quick on tailscale0 keep state  # subnet-router : trafic des autres nodes"
+  - tailscale-advertise:
+      routes: "{{ routes }}"
