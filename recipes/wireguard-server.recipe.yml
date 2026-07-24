@@ -1,0 +1,59 @@
+recipe: wireguard-server
+description: |
+  Serveur VPN WireGuard DÉDIÉ (indépendant du mesh Tailscale). Installe
+  wireguard-tools, ouvre le port UDP, active routage + NAT sortant, et monte
+  l'interface `wg0` (clé privée du COFFRE). Les appareils (iPhone/Pixel/laptop)
+  sont des PAIRS `[Peer]`.
+
+  CLÉ PRIVÉE du serveur (UNE fois) :
+    wg genkey | tee server.key | wg pubkey > server.pub
+  Mettez `server.key` au coffre sous `WG_PRIVKEY` (`beryl env edit <société>`,
+  section `[wireguard]`), donnez `server.pub` aux appareils. CHAQUE appareil
+  génère SA paire (sa clé privée reste SUR l'appareil) et vous donne sa clé
+  PUBLIQUE.
+
+  AJOUTER DES PAIRS : `apply_recipes` ne transmet pas de listes → copiez cette
+  recette dans `~/.config/beryl/<société>/recipes/` et renseignez `peers` dans
+  l'étape `wireguard-interface` :
+    - wireguard-interface:
+        address: "{{ address }}"
+        private_key_env: WG_PRIVKEY
+        peers:
+          - { name: iphone, public_key: "CLE_PUB_IPHONE=", allowed_ips: "10.100.0.2/32" }
+          - { name: pixel,  public_key: "CLE_PUB_PIXEL=",  allowed_ips: "10.100.0.3/32" }
+
+  EXIT (tout le trafic) vs SPLIT (services précis) = `AllowedIPs` CÔTÉ CLIENT
+  (`0.0.0.0/0, ::/0` = exit ; un CIDR précis = split). Rien à changer côté
+  serveur (le NAT sortant couvre les deux).
+
+  ⚠️ Ne combinez pas avec `firewall-pf` (blocs gérés via `pf-rule`).
+requires:
+  - base-packages
+parameters:
+  address:
+    type: string
+    default: "10.100.0.1/24"
+    description: IP du serveur dans le tunnel.
+  listen_port:
+    type: string
+    default: "51820"
+  tunnel_net:
+    type: string
+    default: "10.100.0.0/24"
+    description: Réseau du tunnel (source du NAT sortant).
+  egress:
+    type: string
+    default: egress
+steps:
+  - pkg-install:
+      packages: [wireguard-tools]
+  - ip-forward:
+  - pf-rule:
+      rule: "pass in quick proto udp to port {{ listen_port }} keep state  # WireGuard"
+  - pf-rule:
+      nat: true
+      rule: "nat on {{ egress }} from {{ tunnel_net }} to any -> ({{ egress }})"
+  - wireguard-interface:
+      address: "{{ address }}"
+      listen_port: "{{ listen_port }}"
+      private_key_env: WG_PRIVKEY

@@ -14,6 +14,24 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.27 (13 juillet 2026)
+
+Accès distant — solutions 2/3 (WireGuard dédié) et 3/3 (redirection SSH).
+Complète `tailscale-exit-node`/`tailscale-subnet-router` (0.0.26). DRY-RUN
+(validation in-vivo en attente d'un host de test, hors `bi`).
+
+=== Ajouté
+
+* `wireguard-server` — serveur VPN WireGuard dédié (indépendant du mesh) :
+  `wireguard-tools`, `ip-forward`, ouverture UDP (`pf-rule`), NAT sortant
+  (`pf-rule` mode `nat`), interface `wg0` via la primitive `wireguard-interface`
+  (clé privée du coffre `WG_PRIVKEY`). Pairs à renseigner en copie privée
+  (`apply_recipes` ne transmet pas de listes). exit/split = `AllowedIPs` côté
+  client. Requiert beryl >= 0.6.19.
+* `ssh-tunnel-user` — utilisateur SSH verrouillé pour la redirection de port
+  (`ssh -L`/`-D`/`-N`) : shell `nologin` + clé autorisée `restrict,port-forwarding`.
+  Appoint léger (AllowTcpForwarding actif par défaut). `key` obligatoire.
+
 == 0.0.26 (13 juillet 2026)
 
 Accès distant — solution 1/3 (mesh Tailscale/Headscale). WireGuard dédié et

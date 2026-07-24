@@ -1,0 +1,40 @@
+recipe: ssh-tunnel-user
+description: |
+  Utilisateur SSH DÉDIÉ à la redirection de port (tunnels `ssh -L`/`-D`/`-N`),
+  verrouillé : shell `nologin` + clé autorisée avec les options
+  `restrict,port-forwarding` (tout désactivé SAUF le forwarding). Solution
+  d'appoint, ultra-légère : `AllowTcpForwarding` est activé globalement (défaut
+  sshd, non touché par le durcissement beryl).
+
+  `key` = clé PUBLIQUE de l'appareil autorisé (obligatoire). Pour plusieurs
+  appareils : copiez la recette en privé et listez-les dans `user-update-keys`.
+
+  USAGE CLIENT (rien à installer côté serveur au-delà de cette recette) :
+  * proxy SOCKS navigateur :        ssh -N -D 1080 tunnel@<serveur>
+  * port distant précis :           ssh -N -L 5432:127.0.0.1:5432 tunnel@<serveur>
+  * (sshuttle nécessite un shell + python côté serveur → PAS ce user verrouillé ;
+     utilisez un compte admin dédié si vous voulez sshuttle.)
+
+  Ce compte NE permet PAS de shell ni d'exécution : uniquement des tunnels TCP.
+parameters:
+  user:
+    type: string
+    default: tunnel
+  key:
+    type: string
+    default: ""
+    description: Clé publique de l'appareil autorisé (obligatoire).
+  shell:
+    type: string
+    default: /usr/sbin/nologin
+steps:
+  - sshd-config-set:
+      key: AllowTcpForwarding
+      value: "yes"
+  - user-create:
+      name: "{{ user }}"
+      shell: "{{ shell }}"
+      comment: "beryl ssh tunnel (port-forwarding only)"
+  - user-update-keys:
+      user: "{{ user }}"
+      keys: "restrict,port-forwarding {{ key }}"
