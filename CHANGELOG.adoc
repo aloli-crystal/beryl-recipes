@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.28 (1ᵉʳ octobre 2026)
+
+=== Ajouté
+
+* `netif-ipv6` — IPv6 publique statique (contexte OVH : ni DHCPv6 ni RA).
+  Adresse `<bloc>::1` (défaut `{{ public_ip6 }}` = `ovh.ipv6`), passerelle
+  link-local `fe80::1` ; conf `rc.conf` + activation à chaud via la primitive
+  `netif6` (alias + route, sans `netif restart` → l'IPv4 survit). Idempotent.
+  Requiert beryl >= 0.6.10.
+
 == 0.0.27 (13 juillet 2026)
 
 Accès distant — solutions 2/3 (WireGuard dédié) et 3/3 (redirection SSH).

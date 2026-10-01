@@ -1,0 +1,37 @@
+recipe: netif-ipv6
+description: |
+  Configure l'IPv6 publique STATIQUE d'un serveur. Contexte OVH : ni DHCPv6
+  ni RA/SLAAC → l'adresse est statique (`<bloc>::1`, PAS `<bloc>::` qui est
+  l'anycast Subnet-Router et reste en DAD `tentative`) et la passerelle est la
+  link-local `fe80::1` (constante OVH, scopée `%<iface>`).
+
+  Pose la conf dans `rc.conf` (`ifconfig_<iface>_ipv6` + `ipv6_defaultrouter`)
+  ET l'active à chaud — SANS couper l'IPv4 : l'adresse est ajoutée en `alias`
+  et la route par défaut posée à chaud, jamais de `service netif restart` (qui
+  couperait le SSH v4 de l'interface publique). Idempotent.
+
+  `address` par défaut = `{{ public_ip6 }}` (champ `ovh.ipv6` du host, forme
+  `<bloc>::1` renseignée par `beryl scan`). L'interface est auto-détectée
+  (celle de la route par défaut = la publique). `gateway`/`prefixlen`
+  surchargeables si un autre hébergeur diffère.
+
+    apply_recipes:
+      - netif-ipv6                                   # adresse = ovh.ipv6
+      - netif-ipv6: { gateway: "fe80::1", prefixlen: "64" }   # surcharge
+parameters:
+  address:
+    type: string
+    default: "{{ public_ip6 }}"
+    description: IPv6 publique du host (défaut = ovh.ipv6, forme <bloc>::1).
+  gateway:
+    type: string
+    default: "fe80::1"
+    description: Passerelle IPv6 (link-local scopée %iface ; fe80::1 chez OVH).
+  prefixlen:
+    type: string
+    default: "64"
+steps:
+  - netif6:
+      address: "{{ address }}"
+      gateway: "{{ gateway }}"
+      prefixlen: "{{ prefixlen }}"
