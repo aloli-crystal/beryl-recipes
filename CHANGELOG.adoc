@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.29 (13 octobre 2026)
+
+=== Ajouté
+
+* `periodic-quiet` — écrit `/etc/periodic.conf` avec
+  `security_status_loginfail_enable="NO"` : le courriel quotidien de
+  sécurité ne recopie plus les tentatives SSH des robots (~2 500 lignes/jour
+  sur un port 22 public), les sections vulnérabilités (base + paquets)
+  deviennent lisibles. Tentatives toujours dans /var/log/auth.log. Paramètre
+  `extra` pour des réglages propres à un serveur.
+
 == 0.0.28 (1ᵉʳ octobre 2026)
 
 === Ajouté

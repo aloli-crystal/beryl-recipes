@@ -1,0 +1,36 @@
+recipe: periodic-quiet
+description: |
+  Allège le rapport quotidien de sécurité de periodic(8) (« <host> daily
+  security run output ») pour que les vulnérabilités sautent aux yeux.
+
+  POURQUOI : sur un serveur dont le port 22 est public, la section « login
+  failures » (script `800.loginfail`) recopie chaque jour TOUTES les
+  tentatives SSH des robots — ~2 500 lignes sur pkg le 13 oct. 2026 — et
+  noie les deux sections utiles : vulnérabilités du système de base
+  (`405.pkg-base-audit`) et des paquets (`410.pkg-audit`), qui restent
+  actives. Les tentatives restent journalisées dans /var/log/auth.log ;
+  seul leur recopiage dans le courriel disparaît.
+
+  /etc/periodic.conf est le fichier prévu pour les réglages locaux (lu après
+  /etc/defaults/periodic.conf) ; il n'existe pas sur une installation neuve.
+  Cette recette en devient PROPRIÉTAIRE et l'écrit en entier : si un serveur
+  en a déjà un (réglages à la main), le dry-run le montre — reportez-les
+  dans `extra` avant d'appliquer.
+parameters:
+  extra:
+    type: string
+    default: ""
+    description: Lignes supplémentaires ajoutées telles quelles à /etc/periodic.conf (réglages propres à un serveur).
+steps:
+  - file-write:
+      path: /etc/periodic.conf
+      mode: "0644"
+      owner: "root:wheel"
+      content: |
+        # Géré par beryl (recette periodic-quiet). NE PAS éditer à la main.
+        # Défauts : /etc/defaults/periodic.conf.
+
+        # Tentatives SSH : seulement dans /var/log/auth.log, plus dans le
+        # courriel quotidien de sécurité.
+        security_status_loginfail_enable="NO"
+        {{ extra }}
