@@ -20,11 +20,12 @@ description: |
   Cf. doc headscale Phase 1b.
 
 requires:
+  - git-lite
   - headscale-server
 
 steps:
   - pkg-install:
-      packages: [git, gzip]
+      packages: [gzip]
 
   # Le standby installe headscale mais le DÉSACTIVE. La recipe
   # headscale-server appelée en `requires` a `service-enable: headscale`.

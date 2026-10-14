@@ -1,5 +1,7 @@
 recipe: base-packages
-description: Packages de base communs à tout serveur FreeBSD.
+description: Packages de base communs à tout serveur FreeBSD (git via `git-lite`).
+requires:
+  - git-lite
 steps:
   - pkg-install:
-      packages: [bash, git, curl]
+      packages: [bash, curl]

@@ -35,9 +35,9 @@ on the beryl side.
 * *Base* : `base-packages`, `shell-tools`, `freebsd-updates`.
 * *Hardening* : `ssh-hardening`, `firewall-pf` (opt-in, ships its own
   `/etc/pf.conf`).
-* *Application* : `ruby`, `nginx`, `letsencrypt`.
+* *Application* : `acme`, `nginx`, `nginx-lite`, `ruby`.
 * *Aggregates* : `post-install` (base + ssh-hardening),
-  `web-server` (ruby + nginx + letsencrypt).
+  `web-server` (ruby + nginx-lite + acme).
 * *Coming up* : FreeBSD integration tests under QEMU, then the `v1.0.0`
   tag once the common core is settled.
 ====

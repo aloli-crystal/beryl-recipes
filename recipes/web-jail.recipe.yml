@@ -17,7 +17,7 @@ description: |
       - web-jail: { name: myapp, index: 5, port: 3000, server_name: app.example.net }
 
   Le DÉPLOIEMENT du code se fait ensuite par le CI (SSH host + `jexec <name>`),
-  ou via une primitive `jail-exec`. TLS : recettes nginx/letsencrypt à part.
+  ou via une primitive `jail-exec`. TLS : recettes nginx/acme à part.
   Cf. memory `beryl-jail-isolation.md`.
 
 requires:

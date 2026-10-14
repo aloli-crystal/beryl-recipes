@@ -1,8 +1,8 @@
 recipe: web-server
-description: Pile serveur web (Ruby + nginx + certbot).
+description: Pile serveur web (Ruby + nginx-lite + acme.sh), sans Python.
 requires:
+  - acme
+  - nginx-lite
   - ruby
-  - nginx
-  - letsencrypt
 # Pas de steps : agrégat. Le pare-feu (firewall-pf) est volontairement
 # laissé en opt-in explicite — il prend la main sur /etc/pf.conf.

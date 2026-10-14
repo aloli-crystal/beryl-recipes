@@ -24,11 +24,12 @@ description: |
   Cf. doc headscale Phase 1a.
 
 requires:
+  - git-lite
   - headscale-server
 
 steps:
   - pkg-install:
-      packages: [git, gzip]
+      packages: [gzip]
 
   - file-write:
       path: /usr/local/sbin/headscale-backup.sh

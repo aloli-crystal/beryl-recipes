@@ -14,6 +14,30 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.30 (14 octobre 2026)
+
+=== Ajouté
+
+* `git-lite` — remplace le `git` complet par `git-lite` (même commande, sans
+  Python ni Perl) : retire `git` (conflit sur /usr/local/bin/git) puis
+  installe `git-lite` ; `autoremove: "oui"` lance `pkg autoremove` pour les
+  dépendances devenues orphelines (python3xx, perl5, p5-*). Fait disparaître
+  du rapport de sécurité des avis Python sans correctif (`>= 0`).
+  `base-packages`, `headscale-backup`, `headscale-server` (via
+  `base-packages`), `headscale-standby` et `oh-my-zsh` la requièrent au lieu
+  d'installer `git`.
+
+=== Modifié (moins de paquets sur les serveurs)
+
+* `web-server` — agrégat `acme` + `nginx-lite` + `ruby` (au lieu de `nginx`
+  plein + `letsencrypt`) : plus de Python (certbot), nginx allégé.
+
+=== Retiré
+
+* `letsencrypt` — installait `py311-certbot`, donc Python sur le serveur.
+  Remplacée par `acme` (acme.sh, shell POSIX). Pas d'alias : ne plus
+  l'utiliser.
+
 == 0.0.29 (13 octobre 2026)
 
 === Ajouté

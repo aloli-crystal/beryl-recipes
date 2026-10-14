@@ -16,9 +16,11 @@ parameters:
     description: >
       Thème oh-my-zsh. Défaut `gentoo` : invite sur une lignes affichant
       user@hostname → on sait toujours sur quel serveur on est.
+requires:
+  - git-lite
 steps:
   - pkg-install:
-      packages: [zsh, git]
+      packages: [zsh]
   - git-clone:
       repo: https://github.com/ohmyzsh/ohmyzsh.git
       dest: /home/{{ user }}/.oh-my-zsh

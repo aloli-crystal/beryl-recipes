@@ -3,12 +3,12 @@ description: |
   Installe et configure Headscale (serveur de coordination Tailscale
   auto-hébergé). Pose une config minimale en HTTP sur 127.0.0.1:8080,
   prévue pour être placée derrière un reverse-proxy TLS (nginx +
-  letsencrypt). Le service Headscale écoute *uniquement* sur localhost ;
+  acme). Le service Headscale écoute *uniquement* sur localhost ;
   il appartient au nginx de présenter HTTPS sur l'IP publique.
 
   Cette recette ne gère pas :
   * Le TLS / Let's Encrypt — utiliser la recipe `nginx-headscale`
-    (à écrire) ou composer avec `nginx` + `letsencrypt` existants.
+    (à écrire) ou composer avec `nginx-lite` + `acme` existants.
   * Le backup de l'état SQLite — utiliser `headscale-backup`.
   * Le rôle standby (clone en lecture seule) — utiliser
     `headscale-standby`.
@@ -20,7 +20,7 @@ requires:
 
 steps:
   - pkg-install:
-      packages: [headscale, git, sqlite3]
+      packages: [headscale, sqlite3] # git : via base-packages → git-lite
 
   # Le port FreeBSD `net/headscale` crée déjà l'user et les
   # répertoires `/var/db/headscale` + `/var/run/headscale` à
