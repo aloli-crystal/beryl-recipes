@@ -1,7 +1,8 @@
 recipe: ssh-hardening
 description: |
-  Durcissement sshd COMPLET — méta-recette. Compose les unités atomiques
-  (chacune testable seule dans QEMU via ssh-audit) :
+  Durcissement de l'accès au serveur — méta-recette. Compose les unités
+  atomiques (chacune testable seule dans QEMU, ssh-audit pour sshd) :
+    * root-password-lock    — mot de passe root/toor verrouillé (`*`)
     * sshd-auth-keys-only   — auth par clé, pas de mot de passe
     * sshd-host-key-ed25519 — une seule clé d'hôte (ed25519)
     * sshd-crypto-modern    — kex/ciphers/MACs modernes (réf. adi + mlkem)
@@ -11,6 +12,7 @@ description: |
   rien ne change → la méta est idempotente (2ᵉ apply = 0 applied).
   Backward-compatible : `requires: [ssh-hardening]` continue de tout poser.
 requires:
+  - root-password-lock
   - sshd-auth-keys-only
   - sshd-host-key-ed25519
   - sshd-crypto-modern

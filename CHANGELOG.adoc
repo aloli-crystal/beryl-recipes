@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.34 (14 octobre 2026)
+
+=== Ajouté
+
+* `root-password-lock` — verrouille le mot de passe de `root` et `toor`
+  (champ à `*`) : une installation FreeBSD laisse `root` sans mot de passe,
+  donc `su` sans rien taper pour tout membre de `wheel`. `sudo` et l'accès
+  root par clé SSH restent possibles (`*` n'est pas `*LOCKED*`). Un mot de
+  passe déjà en `*…` est laissé tel quel. Requiert beryl >= 0.6.26
+  (primitive `command`).
+
+=== Modifié
+
+* `ssh-hardening` — requiert `root-password-lock` : le durcissement de
+  l'accès au serveur verrouille aussi le mot de passe root (donc dès le
+  bootstrap, qui enchaîne `apply`).
+
 == 0.0.33 (14 octobre 2026)
 
 === Modifié
