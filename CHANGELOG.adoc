@@ -14,6 +14,14 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.32 (14 octobre 2026)
+
+=== Modifié
+
+* `nginx-base` — paramètre `extra_variants` : variantes nginx maison d'un dépôt
+  poudriere à retirer lors d'une bascule, en plus de celles du dépôt officiel
+  (aucun nom de paquet propre à une société dans la recette).
+
 == 0.0.31 (14 octobre 2026)
 
 Requiert beryl >= 0.6.26 (primitives `command`, `file-absent`, `postgresql-*`,
