@@ -1,4 +1,4 @@
-= Ruby 2.7.8 — paquet pkg interne Aloli (transitoire)
+= Ruby 2.7.8 — paquet pkg interne Initech (transitoire)
 
 Build *une fois*, déploiement *en pkg* sur la flotte FreeBSD 15. Remplace la
 compilation par host (`ruby-install`) pour ~20 serveurs, le temps de migrer
@@ -24,31 +24,31 @@ hors Ruby 2.7 (6–12 mois).
 # 2. Générer la clé (1re fois), signer le catalogue, publier
 ./02-build-repo.sh
 #   -> imprime la CLÉ PUBLIQUE : la coller dans
-#      recipes/ruby27-aloli.recipe.yml (étape file-write aloli-pkg.pub)
+#      recipes/ruby27-initech.recipe.yml (étape file-write initech-pkg.pub)
 ----
 
 Variables surchargables : `REPO`, `KEYS`, `PUBLISH`, `OSSL_VERSION`.
 
 == Déploiement flotte
 
-Via la recette `ruby27-aloli` (requires `chruby`) :
+Via la recette `ruby27-initech` (requires `chruby`) :
 
 [source,sh]
 ----
 beryl apply <société|domaine|host>
 ----
 
-La recette pose la clé publique + la conf du dépôt `aloli` (priorité 100),
-puis `pkg install openssl111 ruby27-aloli`.
+La recette pose la clé publique + la conf du dépôt `initech` (priorité 100),
+puis `pkg install openssl111 ruby27-initech`.
 
 == ⚠️ Sécurité
 
-* `keys/aloli-pkg.key` (clé PRIVÉE de signature) : *hors git*, 0400, sauvegardée.
+* `keys/initech-pkg.key` (clé PRIVÉE de signature) : *hors git*, 0400, sauvegardée.
   Ne JAMAIS la committer.
-* `keys/aloli-pkg.pub` : publique, va dans la recette (sûre à diffuser).
+* `keys/initech-pkg.pub` : publique, va dans la recette (sûre à diffuser).
 
 == Retrait (fin de migration)
 
-Supprimer la recette `ruby27-aloli`, retirer les pkg du dépôt, puis sur les
-hôtes : `pkg delete ruby27-aloli openssl111` + supprimer
-`/usr/local/etc/pkg/repos/aloli.conf`.
+Supprimer la recette `ruby27-initech`, retirer les pkg du dépôt, puis sur les
+hôtes : `pkg delete ruby27-initech openssl111` + supprimer
+`/usr/local/etc/pkg/repos/initech.conf`.

@@ -14,6 +14,13 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.33 (14 octobre 2026)
+
+=== Modifié
+
+* Documentation (README, doc/, tools/ruby27-pkg) sans nom de société : noms
+  neutres `initech`, `globex`, domaines réservés `.example`.
+
 == 0.0.32 (14 octobre 2026)
 
 === Modifié
@@ -38,7 +45,7 @@ options `if_changed` / `deferred`, `requires:` en forme map).
   nginx (`monit.d/nginx.conf`) et retire les anciennes sondes qui
   déclaraient chacune `check process nginx` (beryl >= 0.6.26 : `file-absent`).
   Bascule de variante : toute AUTRE variante nginx installée (nginx,
-  nginx-lite, nginx-lite-passenger-ruby<NN>, nginx-quimeo…) est retirée avant
+  nginx-lite, nginx-lite-passenger-ruby<NN>, nginx-globex…) est retirée avant
   d'installer `package`, et nginx est redémarré s'il tournait (étape `command`
   gardée, en lecture seule à blanc).
 
@@ -266,10 +273,10 @@ sur les checksums, cf. runbook `beryl/adoc/burnin-memory-provisioning.adoc`).
 
 === Ajouté
 
-* `pkg-repo-quimeo` — enrôle le dépôt pkg privé `quimeo` sur un client (clé
-  publique de signature + `/usr/local/etc/pkg/repos/quimeo.conf`, priorité 10,
+* `pkg-repo-globex` — enrôle le dépôt pkg privé `globex` sur un client (clé
+  publique de signature + `/usr/local/etc/pkg/repos/globex.conf`, priorité 10,
   URL = IP vRack du builder). `requires: vrack-interface`. Modèle A (overlay) :
-  `quimeo` ne sert que l'EOL/custom, le reste reste officiel. Consommation
+  `globex` ne sert que l'EOL/custom, le reste reste officiel. Consommation
   validée in vivo depuis obi (`pkg update` → 7 paquets, signature OK).
 
 == 0.0.20 (16 juin 2026)
@@ -300,7 +307,7 @@ sur les checksums, cf. runbook `beryl/adoc/burnin-memory-provisioning.adoc`).
 === Ajouté
 
 * `unbound-vrack` — résolveur DNS PRIVÉ du vRack sur un bastion z (écoute
-  sur l'IP vRack + loopback, sert `vrack.quimeo.net`, forwarde le reste).
+  sur l'IP vRack + loopback, sert `vrack.globex.example`, forwarde le reste).
   La zone est remplie par `beryl vrack-dns --to <z>` (>= beryl 0.5.66).
   Config unbound à valider in vivo. Recettes `resolver-vrack` (clients) +
   helper sshuttle (Mac) à suivre.
@@ -477,7 +484,7 @@ Découpage du durcissement sshd en recettes atomiques testables seules
   direct de `ssh-hardening`).
 * `sshd-host-key-ed25519` — une seule clé d'hôte (ed25519).
 * `sshd-crypto-modern` — kex/ciphers/MACs modernes calqués sur la
-  référence adi.quimeo.net + `mlkem768x25519-sha256` (post-quantique,
+  référence adi.globex.example + `mlkem768x25519-sha256` (post-quantique,
   OpenSSH 10) ; zéro `[fail]`/`[warn]` ssh-audit, mitigation Terrapin
   totale (pas de chacha20-poly1305).
 * `sshd-banner-neutral` — banner neutre : `VersionAddendum` = société
@@ -491,7 +498,7 @@ Découpage du durcissement sshd en recettes atomiques testables seules
 
 ==== Documentation
 
-* `README.adoc` passé en ANGLAIS (canonique, règle ALOLI) ; version
+* `README.adoc` passé en ANGLAIS (canonique, règle INITECH) ; version
   française conservée dans `README.fr.adoc`, renvoi croisé en tête.
 
 ==== Phase 2 → 4 — Mesh Headscale, toggle port 22, hooks Capistrano
@@ -514,7 +521,7 @@ primitives ajoutées dans beryl v0.4.0.
 * `sshd-public-open` (Phase 3b) — ouvre TEMPORAIREMENT le port 22
   public. assert-env-var BERYL_REASON obligatoire,
   auto-close-schedule à 1 h, et chaque ouverture commit une ligne
-  d'audit dans aloli/headscale-state via
+  d'audit dans initech/headscale-state via
   headscale-state-commit.
 * `sshd-public-close` (Phase 3b) — referme le port 22 public,
   repasse en overlay-only. Idempotent. Appelée manuellement par
@@ -532,18 +539,18 @@ primitives ajoutées dans beryl v0.4.0.
   tableau de décision pour choisir entre les deux mécanismes.
 * `doc/capistrano-ssh-window.rake` — fichier prêt à copier dans
   `lib/capistrano/tasks/` de l'app Rails legacy. Hooks
-  `before deploy:starting → aloli:ssh_open` et
-  `after deploy:finished/failed → aloli:ssh_close`. Detection
+  `before deploy:starting → initech:ssh_open` et
+  `after deploy:finished/failed → initech:ssh_close`. Detection
   préalable du port 22 (skip si déjà ouvert), boucle d'attente
   jusqu'à 60 s pour la propagation pf, raise sur timeout.
 
-==== Phase 1a/1b — Headscale auto-hébergé (overlay réseau Aloli)
+==== Phase 1a/1b — Headscale auto-hébergé (overlay réseau Initech)
 
 Trois recettes et un document pour le déploiement Headscale décrit
 dans la roadmap interne `roadmap_beryl_headscale.md`. Architecture :
 1 actif (RBX) + 2 standbys chauds (SBG, GRA), état partagé via dump
 SQL textuel commit toutes les 5 min sur le repo GitHub privé
-`aloli/headscale-state`.
+`initech/headscale-state`.
 
 * `headscale-server` — installe headscale + sqlite3, pose la config
   (écoute `127.0.0.1:8080`, TLS délégué à un nginx en frontal),
@@ -551,7 +558,7 @@ SQL textuel commit toutes les 5 min sur le repo GitHub privé
   permettre des snapshots `.backup` sans bloquer le service.
 * `headscale-backup` — sur le primary : cron 5 min qui fait
   `sqlite3 .backup` → `.dump` → `gzip` → `git commit + push` vers
-  `aloli/headscale-state`. Sérialisé via `flock`, garde-fous
+  `initech/headscale-state`. Sérialisé via `flock`, garde-fous
   sur pré-requis absents. Inclut un helper one-shot
   `headscale-backup-init.sh` pour le clone initial du repo.
 * `headscale-standby` — sur SBG/GRA : installe headscale **mais
@@ -581,7 +588,7 @@ SQL textuel commit toutes les 5 min sur le repo GitHub privé
 
 === Ajouté
 
-==== Recettes Aloli courantes
+==== Recettes Initech courantes
 
 Composent les primitives livrées côté beryl (Phase 2 du moteur) :
 
@@ -621,8 +628,8 @@ Composent les primitives livrées côté beryl (Phase 2 du moteur) :
 
 * Squelette initial (`README.adoc`, LICENSE MIT, layout
   `recipes/` + `tests/`).
-* Convention Aloli : branche par défaut `production`, messages de
-  commit en français, licence MIT, auteurs `ALOLI sas`.
+* Convention Initech : branche par défaut `production`, messages de
+  commit en français, licence MIT, auteurs `INITECH sas`.
 
 ==== Documentation
 
@@ -637,5 +644,5 @@ Composent les primitives livrées côté beryl (Phase 2 du moteur) :
 
 * Aucune recette à ce stade. Le dépôt est prêt à recevoir les
   recettes de la phase 1 (PoC) puis de la phase 2 (couverture
-  Aloli courante).
+  Initech courante).
 * Le mécanisme `recipes-tap` côté beryl est en cours de design.

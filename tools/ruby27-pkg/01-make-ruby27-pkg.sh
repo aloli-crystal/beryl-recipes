@@ -4,7 +4,7 @@
 # Repackage l'arbre Ruby 2.7.8 DÉJÀ compilé et validé in vivo
 # (/opt/rubies/ruby-2.7.8) en paquet pkg binaire, SANS recompiler, et fige
 # openssl111 dans le même répertoire de dépôt. Le but : build une fois ici,
-# déployé en pkg sur les ~20 serveurs (cf. recette ruby27-aloli).
+# déployé en pkg sur les ~20 serveurs (cf. recette ruby27-initech).
 #
 # Pré-requis : /opt/rubies/ruby-2.7.8 présent (script install-ruby-2.7.sh) et
 # openssl111 encore disponible dans le dépôt FreeBSD-ports (à capturer MAINTENANT,
@@ -12,7 +12,7 @@
 set -eu
 
 PREFIX=/opt/rubies/ruby-2.7.8
-REPO=${REPO:-/root/aloli-repo-build/out}   # répertoire de dépôt (sortie)
+REPO=${REPO:-/root/initech-repo-build/out}   # répertoire de dépôt (sortie)
 VERSION=2.7.8
 OSSL_VERSION=${OSSL_VERSION:-1.1.1w_2}      # version exacte d'openssl111 installée
 
@@ -28,11 +28,11 @@ echo "plist : $(wc -l < "$work/pkg-plist") entrées"
 
 # --- 2. Manifeste UCL ---
 cat > "$work/+MANIFEST" <<EOF
-name: ruby27-aloli
+name: ruby27-initech
 version: "$VERSION"
-origin: lang/ruby27-aloli
-comment: "Ruby $VERSION (build interne Aloli, patch FreeBSD15 qsort_r, lié openssl111)"
-maintainer: it@aloli.fr
+origin: lang/ruby27-initech
+comment: "Ruby $VERSION (build interne Initech, patch FreeBSD15 qsort_r, lié openssl111)"
+maintainer: it@initech-fr.example
 www: "https://www.ruby-lang.org/"
 prefix: "$PREFIX"
 desc: "Ruby $VERSION recompilé en interne pour FreeBSD 15 (patch util.c qsort_r + OpenSSL 1.1.1). Posé tel quel dans $PREFIX, découvert par chruby. Dépendance transitoire le temps de migrer hors Ruby 2.7."
@@ -43,7 +43,7 @@ EOF
 
 # --- 3. Création du paquet binaire (PAS de recompilation) ---
 pkg create -r "$PREFIX" -M "$work/+MANIFEST" -p "$work/pkg-plist" -o "$REPO"
-echo "pkg ruby27-aloli créé dans $REPO"
+echo "pkg ruby27-initech créé dans $REPO"
 
 # --- 4. Figer openssl111 (+ deps) dans le même dépôt, tant qu'il existe upstream ---
 pkg fetch -y -o "$REPO" -d openssl111

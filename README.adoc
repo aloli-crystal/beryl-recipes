@@ -10,7 +10,7 @@ Version française : link:README.fr.adoc[README.fr.adoc].
 ====
 
 [.lead]
-Official Aloli recipes for
+Official Initech recipes for
 https://github.com/aloli-crystal/beryl[beryl] —
 the Crystal provisioner for bare-metal FreeBSD servers.
 
@@ -24,7 +24,7 @@ versioned and forkable.
 
 [IMPORTANT]
 ====
-*Current Aloli recipes shipped.* The full set of primitives now exists
+*Current Initech recipes shipped.* The full set of primitives now exists
 on the beryl side; the recipes below compose them. The YAML format is
 *not frozen yet* until the `v1.0.0` tag is cut.
 
@@ -105,7 +105,7 @@ keyword. A recipe is a recipe.
 ----
 # recipes/post-install.recipe.yml
 recipe: post-install
-description: Standard Aloli post-install for FreeBSD
+description: Standard Initech post-install for FreeBSD
 requires:
   - freebsd-updates
   - firewall-pf
@@ -209,7 +209,7 @@ Recipes accepted into this main repository must be:
 
 * *FreeBSD-native* (no Linuxisms — `pw`, not `useradd` ; `service`, not
   `systemctl` ; `pkg`, not `apt`).
-* *Generic* (usable by any beryl user, not Aloli-specific).
+* *Generic* (usable by any beryl user, not Initech-specific).
 * *Idempotent* (re-running `beryl apply` several times must be a no-op).
 * *Documented* (clear description, typed parameters, a usage example in
   a comment if non-trivial).

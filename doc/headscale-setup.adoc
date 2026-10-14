@@ -1,4 +1,4 @@
-= Setup Headscale auto-hébergé Aloli (Phase 1)
+= Setup Headscale auto-hébergé Initech (Phase 1)
 :toc: left
 :toclevels: 2
 :source-highlighter: rouge
@@ -6,7 +6,7 @@
 
 [.lead]
 Procédure manuelle de bootstrap pour le déploiement Headscale décrit
-dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
+dans la roadmap interne Initech `roadmap_beryl_headscale.md`. À suivre
 *une fois*, dans l'ordre, avant d'appliquer les recettes
 `headscale-server` / `headscale-backup` / `headscale-standby`.
 
@@ -33,7 +33,7 @@ dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
               │                  └── failover manuel ┘
               │                  (DNS + service start)
               ▼
-        headscale.aloli.net   (record A pointe sur le primary, TTL 60 s)
+        headscale.initech.example   (record A pointe sur le primary, TTL 60 s)
 ----
 
 * *RPO* : 5 min (intervalle entre 2 snapshots commités).
@@ -45,8 +45,8 @@ dans la roadmap interne Aloli `roadmap_beryl_headscale.md`. À suivre
 == Étape 1 — Créer le repo GitHub privé (UN par société)
 
 Chaque société a SON dépôt d'état, dans SA propre organisation GitHub :
-`<company>/headscale-state` (ex. `aloli/headscale-state`,
-`quimeo/headscale-state`). beryl interpole `<company>` via `{{ company }}`
+`<company>/headscale-state` (ex. `initech/headscale-state`,
+`globex/headscale-state`). beryl interpole `<company>` via `{{ company }}`
 dans les recettes — chaque mesh de société est ainsi isolé.
 
 En ligne de commande (recommandé) :
@@ -115,17 +115,17 @@ en *write* avant de pouvoir pusher (étape qui s'ajoute aux 15-30 min
 de RTO).
 ====
 
-== Étape 4 — Appliquer les recettes Aloli
+== Étape 4 — Appliquer les recettes Initech
 
 [source,shell]
 ----
 # Sur le primary (typiquement RBX) :
-beryl apply --recipe headscale-server  rbx.aloli.net
-beryl apply --recipe headscale-backup  rbx.aloli.net
+beryl apply --recipe headscale-server  rbx.initech.example
+beryl apply --recipe headscale-backup  rbx.initech.example
 
 # Sur chaque standby (SBG, GRA), recipe à venir Phase 1b :
-beryl apply --recipe headscale-server  sbg.aloli.net
-beryl apply --recipe headscale-standby sbg.aloli.net
+beryl apply --recipe headscale-server  sbg.initech.example
+beryl apply --recipe headscale-standby sbg.initech.example
 ----
 
 [NOTE]
@@ -205,7 +205,7 @@ Ce script (livré par la recipe `headscale-standby`) fait :
 # Côté beryl, depuis le laptop opérateur (a les credentials du dns_provider) :
 # pose `headscale.<zone>` A/AAAA → IP du nouveau primary (forward seul,
 # pas de reverse ni rename). Détection d'IP live via le compute provider.
-beryl dns-alias sbg.aloli.net --name headscale
+beryl dns-alias sbg.initech.example --name headscale
 # (--dry-run d'abord pour vérifier le plan.)
 ----
 +
@@ -292,7 +292,7 @@ Ajouter ces deux steps avant le step de deploy :
   run: |
     curl -fsSL https://tailscale.com/install.sh | sh
     sudo tailscale up \
-      --login-server=https://headscale.aloli.net \
+      --login-server=https://headscale.initech.example \
       --authkey=${{ secrets.HEADSCALE_EPHEMERAL_AUTHKEY }} \
       --ephemeral
     sudo tailscale ip -4   # debug : log l'IP attribuée

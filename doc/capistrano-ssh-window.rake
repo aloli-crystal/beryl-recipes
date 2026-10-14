@@ -1,4 +1,4 @@
-# lib/capistrano/tasks/aloli_ssh_window.rake
+# lib/capistrano/tasks/initech_ssh_window.rake
 #
 # Ouvre temporairement le port 22 public d'un serveur avant un deploy
 # Capistrano, le referme à la fin (succès OU échec). Sans cette tâche,
@@ -14,24 +14,24 @@
 #   déployées sur le serveur cible.
 #
 # Usage :
-# 1. Copier ce fichier dans `lib/capistrano/tasks/aloli_ssh_window.rake`
+# 1. Copier ce fichier dans `lib/capistrano/tasks/initech_ssh_window.rake`
 #    de l'app Rails.
 # 2. Optionnellement adapter le rôle (`roles(:app)` ci-dessous).
 # 3. Lancer un deploy normal : `bundle exec cap production deploy`.
 #
-# Cf. memory ALOLI `roadmap_beryl_headscale.md` Phase 3b §c).
+# Cf. memory INITECH `roadmap_beryl_headscale.md` Phase 3b §c).
 
-namespace :aloli do
+namespace :initech do
   desc "Ouvre le port 22 si fermé avant le deploy"
   task :ssh_open do
     on roles(:app) do |host|
       hostname = host.hostname
       if port_open?(hostname, 22, timeout: 3)
-        info "[aloli] port 22 déjà ouvert sur #{hostname}, deploy direct."
+        info "[initech] port 22 déjà ouvert sur #{hostname}, deploy direct."
         next
       end
 
-      info "[aloli] port 22 fermé sur #{hostname}, ouverture temporaire"
+      info "[initech] port 22 fermé sur #{hostname}, ouverture temporaire"
       reason = "capistrano deploy #{fetch(:branch)} @ #{Time.now.utc.iso8601}"
       run_locally do
         execute(
@@ -45,13 +45,13 @@ namespace :aloli do
       19.times do |i|
         break if port_open?(hostname, 22, timeout: 3)
         sleep 3
-        warn "[aloli] port 22 toujours fermé (#{i + 1}/20)..." if i > 5
+        warn "[initech] port 22 toujours fermé (#{i + 1}/20)..." if i > 5
       end
       unless port_open?(hostname, 22, timeout: 3)
-        raise "[aloli] port 22 toujours fermé après 60 s — abort deploy"
+        raise "[initech] port 22 toujours fermé après 60 s — abort deploy"
       end
 
-      info "[aloli] port 22 ouvert sur #{hostname}, deploy peut démarrer."
+      info "[initech] port 22 ouvert sur #{hostname}, deploy peut démarrer."
     end
   end
 
@@ -59,7 +59,7 @@ namespace :aloli do
   task :ssh_close do
     on roles(:app) do |host|
       hostname = host.hostname
-      info "[aloli] fermeture du port 22 sur #{hostname}"
+      info "[initech] fermeture du port 22 sur #{hostname}"
       run_locally do
         execute("beryl", "apply", "--recipe", "sshd-public-close", hostname)
       end
@@ -76,6 +76,6 @@ end
 # `deploy:failed` est essentiel : on ne veut pas laisser une fenêtre
 # ouverte 1 h en cas de crash deploy à 2 min, alors qu'on peut
 # refermer immédiatement.
-before "deploy:starting", "aloli:ssh_open"
-after  "deploy:finished", "aloli:ssh_close"
-after  "deploy:failed",   "aloli:ssh_close"
+before "deploy:starting", "initech:ssh_open"
+after  "deploy:finished", "initech:ssh_close"
+after  "deploy:failed",   "initech:ssh_close"
