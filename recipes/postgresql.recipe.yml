@@ -36,7 +36,7 @@ steps:
       base: postgresql
       version: "{{ version }}"
       only: "{{ only }}"
-  # Doit précéder `postgresql-initdb` : `service postgresql initdb` lit
+  # Doit précéder `postgresql-initdb` : `service postgresql oneinitdb` lit
   # `postgresql_initdb_flags` dans rc.conf. Sur un client-only (initdb
   # skippé), la variable reste simplement inerte.
   - sysrc-set:

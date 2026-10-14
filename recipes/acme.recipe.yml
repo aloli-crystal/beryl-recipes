@@ -4,44 +4,89 @@ description: |
   Python (choix de parc : pas de Python sur les serveurs). Remplace
   `letsencrypt` (certbot). `socat` est requis pour le mode `--standalone`.
 
-  Le renouvellement est porté par le cron ci-dessous : acme.sh renouvelle
-  les certificats arrivant à échéance et exécute le `reloadcmd` enregistré
-  par domaine au moment du `--install-cert` (ex. `service nginx reload`).
-  Home acme.sh fixé à `/usr/local/etc/acme.sh` (cohérent issue ↔ cron).
+  CONVENTIONS DU PORT FreeBSD `security/acme.sh` (pkg-plist, pkg-message,
+  fichiers d'exemple), suivies à la lettre :
+  * utilisateur `acme` (créé par le paquet) — acme.sh ne tourne PAS en root ;
+  * home `/var/db/acme/.acme.sh` — le paquet y relie les plugins DNS
+    (`dnsapi`), `deploy` et `notify` ;
+  * certificats dans `/var/db/acme/certs` (`CERT_HOME`) ;
+  * `account.conf` tiré de `account.conf.sample` (`LOG_FILE`, `CERT_HOME`),
+    posé UNE fois puis laissé à acme.sh (il y enregistre ses données) ;
+  * renouvellement par `/usr/local/etc/cron.d/acme` (ligne de
+    `acme.sh-cron.d` du port : utilisateur acme, `lockf`, sortie dans
+    `/var/log/acme.sh.cronjob.log`) ;
+  * rotation des journaux par `/usr/local/etc/newsyslog.conf.d/acme.sh.conf`
+    (ligne de l'exemple du port, décommentée).
 
-  L'ÉMISSION initiale d'un certificat se fait via la primitive `acme-cert`
-  (idempotente : émet au 1ᵉʳ apply, skip tant que le cert reste valide), ex. :
-    - acme-cert:
-        domains: [pkg.example.com]
-        fullchain: /usr/local/etc/ssl/acme/pkg/fullchain.pem
-        key:       /usr/local/etc/ssl/acme/pkg/privkey.pem
-        reloadcmd: "service nginx reload"
-        stop_service: nginx     # libère le port 80 pour --standalone
-  (le `--standalone` occupe brièvement le port 80 : `stop_service` arrête le
-  service le temps de l'émission, ou `method: webroot` pour éviter la coupure.)
-  Le `reloadcmd` enregistré est rejoué par le cron ci-dessous au renouvellement.
+  acme.sh n'étant pas root, il recharge nginx après un renouvellement via
+  sudo, avec une règle limitée à cette seule commande
+  (`/usr/local/etc/sudoers.d/acme`). Le `reloadcmd` d'une recette doit donc
+  être `/usr/local/bin/sudo /usr/sbin/service nginx reload` (chemins
+  absolus : le cron n'a que /bin:/usr/bin dans son PATH).
 
-  WILDCARD / SANS COUPURE — `method: dns` (validation DNS-01) : aucun port
-  n'est mobilisé (donc zéro coupure, même au renouvellement) et c'est la
-  SEULE méthode qui gère les wildcards. Ex. :
+  L'ÉMISSION d'un certificat se fait via la primitive `acme-cert`
+  (idempotente : émet au 1ᵉʳ apply, skip tant que le cert reste valide). En
+  validation DNS-01 (`method: dns`, `dns_provider: dns_ovh`) : aucun port
+  mobilisé, aucune coupure, wildcards possibles ; les credentials DNS sont
+  ceux de la SOCIÉTÉ (traduits pour acme.sh : `OVH_APPLICATION_KEY` →
+  `OVH_AK`…), que acme.sh persiste ensuite pour le renouvellement.
     - acme-cert:
-        domains: [example.com, "*.example.com"]   # le wildcard NE couvre PAS l'apex
+        domains: [www.example.net]
         method: dns
-        dns_provider: dns_ovh                     # plugin dnsapi d'acme.sh
-        fullchain: /usr/local/etc/ssl/acme/wild/fullchain.pem
-        key:       /usr/local/etc/ssl/acme/wild/privkey.pem
-        reloadcmd: "service nginx reload"
-  Les credentials de l'API DNS sont pris dans les credentials de la SOCIÉTÉ
-  (beryl les traduit vers les noms attendus par acme.sh : `OVH_APPLICATION_KEY`
-  → `OVH_AK`, etc.) — rien à saisir dans la recette. La consumer key OVH doit
-  porter les droits `/domain/zone*`. acme.sh persiste ensuite ces credentials :
-  le cron ci-dessous renouvelle seul, sans intervention ni coupure.
-  ⚠️ Le wildcard ne couvre qu'UN niveau (`a.example.com` oui, `a.b.example.com` non).
+        dns_provider: dns_ovh
+        reloadcmd: "/usr/local/bin/sudo /usr/sbin/service nginx reload"
+  Le certificat reste dans CERT_HOME :
+  `/var/db/acme/certs/<domaine>_ecc/fullchain.cer` et `<domaine>.key`.
 requires:
   - base-packages
 steps:
   - pkg-install:
-      packages: [acme.sh, socat]
-  - cron-entry:
-      user: root
-      entry: "0 0,12 * * * /usr/local/sbin/acme.sh --cron --home /usr/local/etc/acme.sh >/dev/null 2>&1"
+      packages: [acme.sh, socat, sudo]
+  # account.conf : valeurs de account.conf.sample du port, posé une seule fois.
+  - file-write:
+      path: /var/db/acme/.acme.sh/account.conf
+      owner: "acme:acme"
+      mode: "0640"
+      if_absent: true
+      content: |
+        LOG_FILE='/var/log/acme.sh.log'
+        CERT_HOME="/var/db/acme/certs"
+  # Journaux créés d'avance pour l'utilisateur acme (/var/log n'est pas
+  # inscriptible par lui ; newsyslog -C ne les créerait qu'à sa prochaine passe).
+  - file-write:
+      path: /var/log/acme.sh.log
+      owner: "acme:acme"
+      mode: "0640"
+      if_absent: true
+      content: ""
+  - file-write:
+      path: /var/log/acme.sh.cronjob.log
+      owner: "acme:acme"
+      mode: "0640"
+      if_absent: true
+      content: ""
+  # Rotation : ligne de l'exemple du port (acme.sh.conf.sample), décommentée,
+  # et la même pour le journal du cron.
+  - file-write:
+      path: /usr/local/etc/newsyslog.conf.d/acme.sh.conf
+      mode: "0644"
+      content: |
+        # acme.sh configuration file for newsyslog.conf — géré par beryl (recette acme).
+        # logfilename                [owner:group]  mode count size when  flags
+        /var/log/acme.sh.log          acme:acme      640  90    *    @T00  BC
+        /var/log/acme.sh.cronjob.log  acme:acme      640  90    *    @T00  BC
+  # Renouvellement : ligne de acme.sh-cron.d du port (journal + lockf).
+  - file-write:
+      path: /usr/local/etc/cron.d/acme
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette acme) — d'après acme.sh-cron.d du port.
+        SHELL=/bin/sh
+        47 3 * * * acme /usr/bin/lockf -t 0 /tmp/.acme.sh.cronjob /usr/local/sbin/acme.sh --cron --home /var/db/acme/.acme.sh > /var/log/acme.sh.cronjob.log 2>&1
+  # acme (non root) recharge nginx après renouvellement : CETTE commande seule.
+  - file-write:
+      path: /usr/local/etc/sudoers.d/acme
+      mode: "0440"
+      content: |
+        # Géré par beryl (recette acme).
+        acme ALL=(root) NOPASSWD: /usr/sbin/service nginx reload

@@ -1,100 +1,108 @@
 recipe: poudriere-nginx
 description: |
-  nginx qui SERT le dépôt poudriere d'un builder de paquets. DEUX faces sur le
-  même nginx (un seul `nginx.conf`, source unique) :
+  Sert le dépôt poudriere d'un builder de paquets : SON fichier
+  `/usr/local/etc/nginx/conf.d/poudriere.conf` (nginx.conf appartient à
+  `nginx-base`) expose DEUX faces du même dépôt (même sortie, même
+  signature ; seuls le nom et le transport changent) :
 
-  * face PRIVÉE vRack (HTTP), bindée sur `{{ vrack_ip }}` UNIQUEMENT — les
-    clients vRack pointent `http://{{ vrack_ip }}/fbsd150amd64-default`.
-  * face PUBLIQUE (HTTPS), bindée sur `{{ public_ip }}`, `server_name
-    {{ public_domain }}` — les clients pointent `https://{{ public_domain }}/${ABI}`.
-    Même dépôt, même signature ; seul le nom et le transport changent. L'URL
-    `${ABI}` (que `pkg` détend en `FreeBSD:15:amd64`) est mappée en nginx sur la
-    sortie poudriere, SANS symlink — pour FreeBSD 16, ajouter un `location`
-    jumeau, clients inchangés.
+  * face PRIVÉE vRack (HTTP), sur `{{ vrack_ip }}` UNIQUEMENT ;
+  * face PUBLIQUE (HTTPS), `server_name {{ public_domain }}` — les clients
+    pointent `https://{{ public_domain }}/${ABI}`.
 
-  Tout ce qui est spécifique au déploiement est un PARAMÈTRE (cf. `parameters:`) :
-  `public_domain`, `public_ip`, `vrack_server_name`. Aucune valeur en dur.
+  L'URL `${ABI}` (que `pkg` détend en `FreeBSD:15:amd64`) est aliasée sur le
+  SYMLINK `FreeBSD:15:amd64` que `poudriere-build` entretient vers le set de
+  la dernière mineure ; pour FreeBSD 16, ajouter un `location` jumeau.
 
-  `requires` :
-  * `vrack-interface` → l'IP vRack est montée AVANT que nginx s'y binde ;
-  * `nginx-lite` → variante allégée (suffit pour des fichiers statiques),
-    elle embarque `http_ssl_module` ;
-  * `acme` → acme.sh (client ACME shell, sans Python) + cron de renouvellement.
+  Certificat Let's Encrypt validé par DNS-01 (plugin acme.sh `dns_ovh`,
+  identifiants OVH du coffre de la société), conventions du port acme.sh
+  (recette `acme`) : aucune coupure, aucun geste manuel. Durci comme
+  `static-site-https` (GET/HEAD seulement, fichiers cachés refusés, HSTS) ;
+  nom inconnu → serveurs par défaut de nginx-base.
 
-  ⚠️ ORDRE DE BOOTSTRAP : le bloc `:443` référence le certificat posé par acme.sh
-  sous `/usr/local/etc/ssl/acme/<public_domain>/`. Il faut donc ÉMETTRE le
-  certificat AVANT le premier apply de cette recette (geste manuel unique, cf.
-  recette `acme`), pour le domaine passé en `public_domain` :
-    D=<public_domain>
-    acme.sh --issue --standalone --server letsencrypt -d "$D" --home /usr/local/etc/acme.sh
-    acme.sh --install-cert -d "$D" --home /usr/local/etc/acme.sh \
-      --fullchain-file "/usr/local/etc/ssl/acme/$D/fullchain.pem" \
-      --key-file       "/usr/local/etc/ssl/acme/$D/privkey.pem" \
-      --reloadcmd "service nginx reload"
-  (`--standalone` occupe brièvement le port 80 : arrêter nginx le temps de
-  l'émission.) Le renouvellement est ensuite porté par le cron de `acme`.
+  Tout ce qui est propre au déploiement est un PARAMÈTRE : `public_domain`,
+  `vrack_server_name`. Une société peut surcharger la recette (plusieurs noms
+  publics, mode alias DNS…) dans `<société>/recipes/`.
 
-  ⚠️ Ne PAS combiner avec `nginx`/`web-server` (config concurrente + conflit de
-  paquet `nginx` ↔ `nginx-lite`). Builder = serveur de paquets, pas applicatif.
-
+  Supervision (inerte tant que monit n'est pas installé) : alerte si le dépôt
+  ne répond plus en HTTPS (requête sur `meta.conf`) ou si le certificat
+  expire dans moins de 14 jours.
 parameters:
   public_domain: {}
-  public_ip: {}
   vrack_server_name: {}
-
 requires:
-  - vrack-interface
-  - nginx-lite
   - acme
-
+  - nginx-base
+  - vrack-interface
 steps:
+  # Certificat AVANT la conf (nginx refuserait une conf sans certificat).
+  - acme-cert:
+      domains: ["{{ public_domain }}"]
+      method: dns
+      dns_provider: dns_ovh
+      reloadcmd: "/usr/local/bin/sudo /usr/sbin/service nginx reload"
   - file-write:
-      path: /usr/local/etc/nginx/nginx.conf
+      path: /usr/local/etc/nginx/conf.d/poudriere.conf
       mode: "0644"
       content: |
-        worker_processes auto;
-        events { worker_connections 1024; }
+        # Géré par beryl (recette poudriere-nginx). Le :80 public (défis ACME,
+        # redirection HTTPS) est le serveur par défaut de nginx-base.
 
-        http {
-            include       mime.types;
-            default_type  application/octet-stream;
-            sendfile      on;
-            keepalive_timeout 65;
+        # Face PRIVÉE vRack (HTTP) : seul serveur sur cette adresse.
+        server {
+            listen      {{ vrack_ip }}:80;
+            server_name {{ vrack_server_name }};
 
-            # --- Face PRIVÉE vRack (HTTP) — invisible côté public ---
-            server {
-                listen      {{ vrack_ip }}:80;
-                server_name {{ vrack_server_name }};
+            root      /usr/local/poudriere/data/packages;
+            autoindex on;
+            client_max_body_size 1k;
 
-                root      /usr/local/poudriere/data/packages;
-                autoindex on;
-            }
-
-            # --- Face PUBLIQUE (HTTPS) ---
-            # :80 public → redirection vers HTTPS. (Émission/renouvellement ACME
-            # par acme.sh ; cf. recette `acme`.)
-            server {
-                listen      {{ public_ip }}:80;
-                server_name {{ public_domain }};
-                return 301 https://$host$request_uri;
-            }
-
-            server {
-                listen      {{ public_ip }}:443 ssl;
-                server_name {{ public_domain }};
-
-                ssl_certificate     /usr/local/etc/ssl/acme/{{ public_domain }}/fullchain.pem;
-                ssl_certificate_key /usr/local/etc/ssl/acme/{{ public_domain }}/privkey.pem;
-                ssl_protocols       TLSv1.2 TLSv1.3;
-
-                # URL pérenne : pkg détend ${ABI} en FreeBSD:15:amd64,
-                # mappé sur la sortie poudriere sans symlink.
-                location /FreeBSD:15:amd64/ {
-                    alias     /usr/local/poudriere/data/packages/fbsd150amd64-default/;
-                    autoindex on;
-                }
+            location / {
+                limit_except GET { deny all; }
             }
         }
-  - service-enable:
+
+        # Face PUBLIQUE (HTTPS).
+        server {
+            listen      443 ssl;
+            listen      [::]:443 ssl;
+            server_name {{ public_domain }};
+
+            ssl_certificate     /var/db/acme/certs/{{ public_domain }}_ecc/fullchain.cer;
+            ssl_certificate_key /var/db/acme/certs/{{ public_domain }}_ecc/{{ public_domain }}.key;
+
+            add_header Strict-Transport-Security "max-age=31536000" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            client_max_body_size 1k;
+
+            location ~ /\. {
+                return 404;
+            }
+
+            # URL pérenne : alias du SYMLINK entretenu par poudriere-build.
+            location /FreeBSD:15:amd64/ {
+                alias     "/usr/local/poudriere/data/packages/FreeBSD:15:amd64/";
+                autoindex on;
+                limit_except GET { deny all; }
+            }
+
+            location / {
+                return 404;
+            }
+        }
+  - service-reload:
       name: nginx
-      start: true
+      if_changed: true
+  - file-write:
+      path: /usr/local/etc/monit.d/poudriere-repo.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette poudriere-nginx).
+        check host poudriere-repo with address {{ public_domain }}
+          if failed port 443 protocol https
+             request "/FreeBSD:15:amd64/meta.conf"
+             and certificate valid > 14 days
+             for 7 cycles then alert
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

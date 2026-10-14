@@ -1,0 +1,140 @@
+recipe: static-site
+description: |
+  Sert un site web STATIQUE (HTML, CSS, images…) sur le port 80 (IPv4 et
+  IPv6). Crée la racine du site, dépose SON fichier
+  `/usr/local/etc/nginx/conf.d/<server_name>.conf` (nginx.conf appartient à
+  `nginx-base`) et recharge nginx si ce fichier change. Idempotent ; plusieurs
+  sites cohabitent sur un même serveur (un fichier chacun).
+
+  Durci pour du statique : pas de version (`server_tokens off`), délais
+  courts (slowloris, dans nginx-base), pas de corps de requête, GET/HEAD
+  seulement, fichiers cachés (`.git`, `.env`…) jamais servis, en-têtes de
+  sécurité navigateur ; hôte inconnu → serveurs par défaut de nginx-base.
+  L'en-tête `Server: nginx` reste (le retirer exige le module headers-more,
+  absent de nginx-lite).
+
+  Les pages se déposent dans `root` (défaut `/usr/local/www/{{ hostname }}`,
+  propriétaire `deploy:www`) : `index.html` y est servi par défaut. Tant
+  qu'il n'existe pas, une PAGE DE TEST est posée (« fichier de test, à
+  supprimer ») ; un `index.html` existant n'est JAMAIS modifié
+  (`file-write` + `if_absent`, beryl >= 0.6.26).
+
+    apply_recipes:
+      - static-site                                    # nom = fqdn du host
+      - static-site: { server_name: www.example.net, server_aliases: example.net, root: /usr/local/www/example }
+
+  HTTPS : utiliser `static-site-https` à la place (certificat Let's Encrypt
+  validé par DNS, sans coupure).
+
+  Un nom principal (`server_name`, qui nomme aussi le fichier de conf) et,
+  au besoin, des noms secondaires (`server_aliases`, séparés par des espaces).
+  Deux sites sur un même serveur : donnez à chacun sa `root`.
+requires:
+  - nginx-base
+parameters:
+  owner:
+    type: string
+    default: "deploy:www"
+    description: Propriétaire de la racine du site (user ou user:group).
+  root:
+    type: string
+    default: "/usr/local/www/{{ hostname }}"
+    description: Dossier servi (les pages du site).
+  server_extra:
+    type: string
+    default: ""
+    description: |
+      Directives ajoutées TELLES QUELLES dans le bloc `server` du site (ex. un
+      `location` propre à ce serveur). Renseignées dans le host.yml, elles
+      survivent aux apply ; elles ne doivent pas contenir de `{{ }}`.
+  server_aliases:
+    type: string
+    default: ""
+    description: Noms DNS secondaires du site, séparés par des espaces.
+  server_name:
+    type: string
+    default: "{{ fqdn }}"
+    description: Nom DNS principal du site (nomme aussi conf.d/<nom>.conf).
+steps:
+  - directory:
+      path: "{{ root }}"
+      owner: "{{ owner }}"
+      mode: "0755"
+  # Page de TEST, posée seulement si `index.html` est absent (`if_absent`) :
+  # elle ne remplace JAMAIS une vraie page. À supprimer dès que le site est
+  # déposé (le propriétaire de la racine peut l'effacer ou l'écraser).
+  - file-write:
+      path: "{{ root }}/index.html"
+      owner: "{{ owner }}"
+      mode: "0644"
+      if_absent: true
+      content: |
+        <!doctype html>
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="robots" content="noindex">
+          <title>Page de test — {{ server_name }}</title>
+          <style>
+            :root { color-scheme: light dark; }
+            body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; }
+            .note { border-left: 4px solid #d97706; padding: .5rem 1rem; background: rgba(217, 119, 6, .08); }
+            code { font-size: .95em; }
+          </style>
+        </head>
+        <body>
+          <h1>Ça fonctionne.</h1>
+          <p>Le serveur web de <strong>{{ server_name }}</strong> répond.</p>
+          <p class="note">
+            <strong>Fichier de test, à supprimer.</strong>
+            Il a été posé automatiquement par beryl (recette <code>static-site</code>)
+            parce que le site n'avait pas encore de page d'accueil.
+            Remplacez-le par votre propre <code>index.html</code> : beryl ne touche
+            jamais à un <code>index.html</code> existant (s'il est simplement effacé,
+            la page de test revient au prochain <code>beryl apply</code>).
+          </p>
+          <p>Racine du site : <code>{{ root }}</code></p>
+        </body>
+        </html>
+  - file-write:
+      path: "/usr/local/etc/nginx/conf.d/{{ server_name }}.conf"
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette static-site).
+        server {
+            listen      80;
+            listen      [::]:80;
+            server_name {{ server_name }} {{ server_aliases }};
+
+            root  {{ root }};
+            index index.html;
+
+            # Site statique : aucune requête légitime n'envoie de corps.
+            client_max_body_size 1k;
+
+            # En-têtes de sécurité du navigateur (hérités par les locations).
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-Frame-Options "DENY" always;
+            add_header Content-Security-Policy "frame-ancestors 'none'" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+            # Fichiers cachés (.git, .env, .htaccess…) : jamais servis.
+            location ~ /\. {
+                return 404;
+            }
+
+            # Directives propres à ce serveur (paramètre `server_extra`).
+            {{ server_extra }}
+
+            # Lecture seule : GET (et HEAD), toute autre méthode refusée.
+            location / {
+                limit_except GET { deny all; }
+                try_files $uri $uri/ =404;
+            }
+        }
+  # Recharge si le fichier du site a changé (nginx-base a démarré nginx).
+  - service-reload:
+      name: nginx
+      if_changed: true

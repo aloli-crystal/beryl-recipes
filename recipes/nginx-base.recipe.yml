@@ -1,0 +1,172 @@
+recipe: nginx-base
+description: |
+  SOCLE nginx commun à toutes les recettes web : installe le paquet, pose
+  `nginx.conf` (SEULE recette à l'écrire) et le dossier `conf.d/`, où chaque
+  site dépose SON fichier (`conf.d/<nom>.conf`, convention nginx amont).
+  Plusieurs sites cohabitent donc sur un même serveur sans s'écraser :
+  `static-site`, `static-site-https`, un dépôt poudriere, une appli… chacun
+  son fichier, nginx.conf commun.
+
+  `nginx.conf` porte le durcissement commun : pas de version
+  (`server_tokens off`), délais courts (slowloris), TLS 1.2/1.3, et deux
+  serveurs PAR DÉFAUT pour les noms inconnus (scan par IP, faux en-tête
+  Host) :
+  * `:80` — sert les défis ACME (HTTP-01) depuis `acme_webroot` pour TOUS
+    les noms (émission d'un certificat en `method: webroot` sans vhost
+    d'amorçage), redirige le reste vers HTTPS ;
+  * `:443` — poignée de main TLS REFUSÉE (`ssl_reject_handshake`) : aucun
+    certificat exposé, aucune réponse.
+
+  La taille des corps de requête N'EST PAS limitée ici (défaut nginx, 1 Mo) :
+  chaque site fixe la sienne (1k pour du statique, davantage pour une appli
+  qui reçoit des fichiers).
+
+  Paramètres :
+  * `package` : `nginx-lite` (défaut ; celui du dépôt beryl a HTTP/2),
+    `nginx-lite-passenger-ruby<NN>` (idem + Passenger compilé pour Ruby
+    N.N, ex. `nginx-lite-passenger-ruby27`) ou `nginx` (plein). Toutes les
+    variantes nginx sont en CONFLIT (une seule par machine) : si une AUTRE est
+    installée, elle est retirée, la demandée installée et nginx REDÉMARRÉ
+    (nouveau binaire ; la conf, modifiée, est conservée par pkg) — coupure de
+    quelques secondes. Une recette qui exige une variante l'impose par
+    `requires:` en forme map :
+        requires:
+          - nginx-base: { package: nginx-lite-passenger-ruby27 }
+  * `http_extra` : directives ajoutées TELLES QUELLES à la fin du bloc
+    `http` (ex. `include monappli/*.conf;` pour un outil qui exige sa ligne
+    dans nginx.conf). Pas de `{{ }}` dedans.
+
+  Supervision (inerte tant que monit n'est pas installé) : nginx relancé
+  s'il tombe (`monit.d/nginx.conf`) ; chaque site ajoute SA sonde HTTPS
+  dans son propre fichier.
+requires:
+  - acme
+parameters:
+  acme_webroot:
+    type: string
+    default: /usr/local/www/letsencrypt
+    description: Dossier des défis ACME servi sur :80 (propriétaire acme).
+  http_extra:
+    type: string
+    default: ""
+    description: Directives ajoutées telles quelles à la fin du bloc http.
+  package:
+    type: string
+    default: nginx-lite
+    description: "`nginx-lite` (défaut), `nginx-lite-passenger-ruby<NN>` ou `nginx` (plein)."
+steps:
+  # Bascule de variante : retire toute AUTRE variante nginx installée, installe
+  # la demandée et redémarre nginx s'il tournait (un rechargement garderait
+  # l'ancien binaire). Rien à faire si seule la variante demandée (ou aucune)
+  # est installée.
+  - command:
+      run: >-
+        others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger-ruby*' nginx-naxsi nginx-quimeo 2>/dev/null | grep -vx '{{ package }}');
+        pkg delete -y $others && pkg install -y '{{ package }}' &&
+        { service nginx onestatus >/dev/null 2>&1 && service nginx restart || true; }
+      unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger-ruby*' nginx-naxsi nginx-quimeo 2>/dev/null | grep -qvx '{{ package }}'"
+      show_output: true
+  - pkg-install:
+      packages: ["{{ package }}"]
+  # Défis ACME écrits par acme.sh, qui tourne sous l'utilisateur `acme`
+  # (conventions du port, recette `acme`) : le dossier lui appartient.
+  - directory:
+      path: "{{ acme_webroot }}"
+      owner: acme:acme
+      mode: "0755"
+  - directory:
+      path: /usr/local/etc/nginx/conf.d
+      owner: root:wheel
+      mode: "0755"
+  - file-write:
+      path: /usr/local/etc/nginx/nginx.conf
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette nginx-base) — ne pas modifier ici : chaque
+        # site a son fichier dans conf.d/.
+        worker_processes auto;
+        events { worker_connections 1024; }
+
+        http {
+            include       mime.types;
+            default_type  application/octet-stream;
+            charset       utf-8;
+            sendfile      on;
+
+            # Pas de numéro de version (en-tête Server, pages d'erreur).
+            server_tokens off;
+
+            # Délais courts : coupe les clients lents qui monopolisent des
+            # connexions (attaque « slowloris »). send_timeout est le délai
+            # ENTRE deux écritures, pas la durée d'un téléchargement.
+            client_header_timeout 10s;
+            client_body_timeout   10s;
+            send_timeout          10s;
+            keepalive_timeout     15s;
+            large_client_header_buffers 4 8k;
+
+            gzip       on;
+            gzip_types text/css application/javascript application/json image/svg+xml text/plain;
+
+            ssl_protocols       TLSv1.2 TLSv1.3;
+            ssl_session_cache   shared:SSL:10m;
+            ssl_session_timeout 1d;
+            ssl_session_tickets off;
+
+            # :80 par défaut (nom inconnu) : défis ACME pour tous les noms,
+            # redirection HTTPS pour le reste.
+            server {
+                listen      80 default_server;
+                listen      [::]:80 default_server;
+                server_name _;
+
+                location ^~ /.well-known/acme-challenge/ {
+                    root         {{ acme_webroot }};
+                    default_type text/plain;
+                }
+
+                location / {
+                    return 301 https://$host$request_uri;
+                }
+            }
+
+            # :443 par défaut (nom inconnu) : poignée de main TLS refusée,
+            # aucun certificat exposé.
+            server {
+                listen      443 ssl default_server;
+                listen      [::]:443 ssl default_server;
+                server_name _;
+                ssl_reject_handshake on;
+            }
+
+            # Un fichier par site (static-site, static-site-https…).
+            include conf.d/*.conf;
+
+            # Directives propres à ce serveur (paramètre `http_extra`).
+            {{ http_extra }}
+        }
+  - service-enable:
+      name: nginx
+      start: true
+  - service-reload:
+      name: nginx
+      if_changed: true
+  # Anciennes sondes (recettes d'avant nginx-base, beryl < 0.6.26) qui
+  # déclaraient chacune `check process nginx` : monit refuse deux services
+  # du même nom. La sonde du processus vit désormais ici, seule.
+  - file-absent:
+      path: /usr/local/etc/monit.d/static-site-https.conf
+  - file-absent:
+      path: /usr/local/etc/monit.d/poudriere-nginx.conf
+  - file-write:
+      path: /usr/local/etc/monit.d/nginx.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette nginx-base). Sondes HTTPS : un fichier par site.
+        check process nginx with pidfile /var/run/nginx.pid
+          start program = "/usr/sbin/service nginx start"
+          stop program  = "/usr/sbin/service nginx stop"
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

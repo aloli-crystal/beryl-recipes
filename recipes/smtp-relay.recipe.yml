@@ -1,8 +1,11 @@
 recipe: smtp-relay
 description: |
-  Relais SMTP sortant via `dma` (DragonFly Mail Agent). Remplace sendmail
-  par un MTA send-only minuscule qui relaie TOUT le courrier local (cron,
-  root, système) vers un smarthost authentifié → vous recevez enfin la
+  Relais SMTP sortant via `dma` (DragonFly Mail Agent), le MTA PAR DÉFAUT du
+  système de base depuis FreeBSD 14 — aucun paquet installé, conventions du
+  système (/etc/dma/, /etc/mail/mailer.conf, /etc/mail/aliases). Un MTA
+  send-only minuscule qui relaie TOUT le courrier local (cron,
+  root, système, ET tous les utilisateurs via l'alias attrape-tout `*`) vers
+  un smarthost authentifié → vous recevez enfin la
   sortie des crons et les alertes. AUCUN démon en écoute (rien à durcir
   côté réseau).
 
@@ -48,49 +51,63 @@ parameters:
     from_env: SMTP_RELAY_TO
     description: Destination du courrier. Défaut = `SMTP_RELAY_TO` du coffre ; surchargeable.
 steps:
-  - pkg-install:
-      packages: [dma]
+  # dma du SYSTÈME DE BASE (MTA par défaut depuis FreeBSD 14) : config dans
+  # /etc/dma/, mêmes droits que le système (root:mail, 0640 — dma tourne en
+  # setgid mail et doit pouvoir lire auth.conf). Aucun paquet à installer.
   # Le compte (MASQUERADE) vient du coffre → secret-file injecte @@USER@@.
   - secret-file:
-      path: /usr/local/etc/dma/dma.conf
-      mode: "0644"
+      path: /etc/dma/dma.conf
+      owner: "root:mail"
+      mode: "0640"
       env:
         "@@USER@@": SMTP_RELAY_USER
       content: |
+        # Géré par beryl (recette smtp-relay) — cf. dma.conf(5).
         SMARTHOST {{ smarthost }}
         PORT {{ smarthost_port }}
-        AUTHPATH /usr/local/etc/dma/auth.conf
+        AUTHPATH /etc/dma/auth.conf
         SECURETRANSFER
         STARTTLS
         MASQUERADE @@USER@@
-  # La paire [user, password] du coffre → auth.conf en 0600.
+  # La paire [user, password] du coffre.
   - secret-file:
-      path: /usr/local/etc/dma/auth.conf
-      mode: "0600"
+      path: /etc/dma/auth.conf
+      owner: "root:mail"
+      mode: "0640"
       env:
         "@@USER@@": SMTP_RELAY_USER
         "@@SECRET@@": SMTP_RELAY_PASSWORD
       content: |
         @@USER@@|{{ smarthost }}:@@SECRET@@
-  # Redirige sendmail/mail/cron vers dma.
+  # mailwrapper → dma : copie de l'exemple fourni par le système
+  # (/usr/share/examples/dma/mailer.conf).
   - file-write:
       path: /etc/mail/mailer.conf
       mode: "0644"
       content: |
-        sendmail   /usr/local/sbin/dma
-        send-mail  /usr/local/sbin/dma
-        mailq      /usr/local/sbin/dma
-        newaliases /usr/local/sbin/dma
-        rmail      /usr/local/sbin/dma
-  # root → boîte réelle. dma lit /etc/aliases à plat (pas de newaliases).
-  - file-write:
-      path: /etc/aliases
-      mode: "0644"
-      content: |
-        # Géré par beryl (recette smtp-relay).
-        root: {{ alert_email }}
-  # Couper les démons sendmail de base (dma les remplace via mailer.conf).
+        #
+        # mailer.conf for use with dma(8)
+        #
+        # If sendmail is configured, an example of mailer.conf that uses sendmail
+        # instead can be found in /usr/share/examples/sendmail.
+
+        sendmail	/usr/libexec/dma
+        mailq		/usr/libexec/dma
+        newaliases	/usr/libexec/dma
+  # Alias dans le fichier du système (/etc/aliases n'en est qu'un lien) : on
+  # ne touche QUE nos lignes, les alias système (postmaster, abuse…) restent.
+  # `root` → votre boîte ; `*` = alias attrape-tout de dma (dma(8), ALIASES) :
+  # tout utilisateur local sans alias (admin, deploy, comptes futurs) aussi.
+  - line-in-file:
+      path: /etc/mail/aliases
+      match: '^root:'
+      line: "root: {{ alert_email }}"
+  - line-in-file:
+      path: /etc/mail/aliases
+      match: '^\*:'
+      line: "*: {{ alert_email }}"
+  # sendmail coupé (Handbook, « Changing the Mail Transfer Agent »).
+  - sysrc-set: { key: sendmail_enable, value: "NONE" }
   - sysrc-set: { key: sendmail_submit_enable, value: "NO" }
   - sysrc-set: { key: sendmail_outbound_enable, value: "NO" }
   - sysrc-set: { key: sendmail_msp_queue_enable, value: "NO" }
-  - service-disable: { name: sendmail, stop: true }

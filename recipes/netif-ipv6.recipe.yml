@@ -5,6 +5,12 @@ description: |
   l'anycast Subnet-Router et reste en DAD `tentative`) et la passerelle est la
   link-local `fe80::1` (constante OVH, scopée `%<iface>`).
 
+  ANCIENNES gammes OVH : la passerelle est GLOBALE, hors du /64 du serveur
+  (`<bloc /56>ff:ff:ff:ff:ff`, valeur exacte dans l'espace client ou l'API
+  OVH `routing.ipv6.gateway`) : la passer en `gateway:` ; la primitive pose
+  alors la route hôte sur le lien vers elle (beryl >= 0.6.26). Symptôme :
+  `ping6 fe80::1%<iface>` sans réponse (qwerty, 8 oct. 2026).
+
   Pose la conf dans `rc.conf` (`ifconfig_<iface>_ipv6` + `ipv6_defaultrouter`)
   ET l'active à chaud — SANS couper l'IPv4 : l'adresse est ajoutée en `alias`
   et la route par défaut posée à chaud, jamais de `service netif restart` (qui

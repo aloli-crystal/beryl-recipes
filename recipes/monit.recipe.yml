@@ -1,8 +1,16 @@
 recipe: monit
 description: |
   Supervision légère via `monit` : surveille le DISQUE (la hantise —
-  alerte AVANT le « disque plein »), la mémoire, le swap, la charge, et
-  peut surveiller des services. Alerte par mail vers `alert_email`.
+  alerte AVANT le « disque plein »), la mémoire, le swap, la charge
+  (rapportée au nombre de cœurs), relance `sshd` et `cron` s'ils tombent.
+  Les autres recettes ajoutent leurs sondes dans `/usr/local/etc/monit.d/` :
+  état des pools ZFS + santé SMART avec `zfs-scrub` (à appliquer AVEC monit
+  — elle l'exige d'ailleurs), nginx/HTTPS avec `static-site-https`.
+  Alerte par mail vers `alert_email`.
+
+  Un contrôle par MINUTE (`poll_interval: 60`) : un service relancé l'est en
+  moins d'une minute. Les seuils de charge, mémoire et swap exigent 7
+  contrôles consécutifs (~7 min) pour ignorer les pics brefs.
 
   monit envoie ses alertes en SMTP direct via le smarthost (mêmes
   paramètres que `smtp-relay`). Le COUPLE [utilisateur, mot de passe] vient
@@ -14,6 +22,13 @@ description: |
 
   CLI : `monit status` / `monit summary` (via socket Unix local — aucun
   port réseau ouvert). Seuils ajustables par paramètres.
+
+  Mails en français : objet `[monit][<fqdn>] <service> · <catégorie> ·
+  <état>` (catégorie française — présence du service, ressources, connexion,
+  contrôle, démarrage de monit, sinon « alerte » ; l'état reste celui de
+  monit, en anglais, car monit n'est pas traduit) et corps en français
+  (serveur, service, événement, action, date, détail). Le FQDN entre
+  crochets permet de trier par serveur dans la messagerie.
 
   Sur ZFS, vérifier `/` suffit à détecter le pool plein (tous les datasets
   partagent l'espace libre du pool).
@@ -56,11 +71,23 @@ parameters:
     description: Seuil d'alerte d'occupation disque ET inodes (%).
   poll_interval:
     type: string
-    default: "120"
-    description: Intervalle de contrôle monit (secondes).
+    default: "60"
+    description: Intervalle de contrôle monit (secondes) — aussi le délai maximal avant relance d'un service tombé.
+  load_per_core:
+    type: string
+    default: "1.5"
+    description: |
+      Seuil d'alerte de la charge moyenne (5 min) RAPPORTÉE AU NOMBRE DE
+      CŒURS logiques (1.0 = tous les cœurs occupés en permanence). Le même
+      seuil vaut ainsi pour un petit et un gros serveur.
 steps:
   - pkg-install:
       packages: [monit]
+  # Dossier des sondes déposées par les autres recettes : créé ici pour que
+  # l'`include` de monitrc ne lève pas d'avertissement tant qu'il est vide.
+  - directory:
+      path: /usr/local/etc/monit.d
+      mode: "0700"
   # monitrc contient la paire SMTP → secret-file (0600), valeurs du coffre.
   - secret-file:
       path: /usr/local/etc/monitrc
@@ -78,28 +105,118 @@ steps:
           username "@@USER@@" password "@@SECRET@@"
           using tlsv12
 
+        # Mails en FRANÇAIS. monit n'est pas traduit : $EVENT (« Does not
+        # exist », « Exists »…), $ACTION et $DESCRIPTION restent en anglais ; on
+        # écrit le cadre en français et, pour les événements courants, une
+        # CATÉGORIE française dans l'objet. Catégorie NEUTRE : un même type
+        # d'événement sert à la panne ET au rétablissement (nonexist → « Does
+        # not exist » puis « Exists »), c'est $EVENT qui dit l'état.
         set mail-format {
           from:    @@USER@@
-          subject: [monit] $HOST : $SERVICE $EVENT
-          message: $DESCRIPTION
+          subject: [monit][{{ fqdn }}] $SERVICE · alerte · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
         }
-        set alert {{ alert_email }}
+        set alert {{ alert_email }} on { nonexist } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · présence du service · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
+        set alert {{ alert_email }} on { resource } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · ressources · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
+        set alert {{ alert_email }} on { connection, timeout } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · connexion · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
+        set alert {{ alert_email }} on { status, exec } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · contrôle · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
+        set alert {{ alert_email }} on { instance } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · démarrage de monit · $EVENT
+          message: Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
+        set alert {{ alert_email }} but not on { nonexist, resource, connection, timeout, status, exec, instance }
 
         set httpd unixsocket /var/run/monit.sock
           allow localhost
 
         check system $HOST
-          if memory usage > 85% for 3 cycles then alert
-          if swap usage   > 50%              then alert
-          if loadavg (5min) > 4 for 3 cycles  then alert
+          if memory usage > 85% for 7 cycles then alert
+          if swap usage   > 50% for 7 cycles then alert
+          if loadavg (5min) per core > {{ load_per_core }} for 7 cycles then alert
+
+        # Services vitaux : relancés s'ils tombent (et alerte). Sans sshd,
+        # plus aucun accès au serveur ; sans cron, plus de tâches planifiées
+        # (scrubs, renouvellement des certificats, rapports…).
+        check process sshd with pidfile /var/run/sshd.pid
+          start program = "/usr/sbin/service sshd start"
+          stop program  = "/usr/sbin/service sshd stop"
+
+        check process cron with pidfile /var/run/cron.pid
+          start program = "/usr/sbin/service cron start"
+          stop program  = "/usr/sbin/service cron stop"
 
         check filesystem rootfs with path /
           if space usage > {{ disk_threshold }}% then alert
           if inode usage > {{ disk_threshold }}% then alert
 
         # Checks additionnels déposés par d'autres recettes (ex. zfs-scrub).
-        # Glob vide toléré si le dossier n'existe pas encore.
+        # Le dossier est créé par cette recette ; un glob vide est toléré.
         include /usr/local/etc/monit.d/*.conf
   - service-enable:
       name: monit
       start: true
+  # Nouvelle conf prise en compte seulement si elle a changé (chaque
+  # rechargement de monit envoie une alerte « instance changed »).
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

@@ -14,6 +14,114 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.31 (14 octobre 2026)
+
+Requiert beryl >= 0.6.26 (primitives `command`, `file-absent`, `postgresql-*`,
+options `if_changed` / `deferred`, `requires:` en forme map).
+
+=== Ajouté
+
+* `nginx-base` — socle nginx commun, SEULE recette à écrire `nginx.conf` :
+  paquet (`nginx-lite` par défaut, `nginx` plein au choix), durcissement
+  commun, `:80` par défaut (défis ACME pour tous les noms + redirection
+  HTTPS), `:443` par défaut en `ssl_reject_handshake` (aucun certificat
+  exposé pour un nom inconnu), `include conf.d/*.conf;` (un fichier par site)
+  et `http_extra` (directives ajoutées au bloc http). Surveille le processus
+  nginx (`monit.d/nginx.conf`) et retire les anciennes sondes qui
+  déclaraient chacune `check process nginx` (beryl >= 0.6.26 : `file-absent`).
+  Bascule de variante : toute AUTRE variante nginx installée (nginx,
+  nginx-lite, nginx-lite-passenger-ruby<NN>, nginx-quimeo…) est retirée avant
+  d'installer `package`, et nginx est redémarré s'il tournait (étape `command`
+  gardée, en lecture seule à blanc).
+
+=== Modifié (refonte nginx conf.d)
+
+* Rechargement de monit en `deferred: true` (beryl >= 0.6.26) dans `monit`,
+  `nginx-base`, `poudriere-nginx`, `static-site-https`, `zfs-scrub` : un seul
+  rechargement, donc une seule alerte « instance changed », par apply.
+
+* `static-site`, `static-site-https`, `poudriere-nginx` — déposent leur
+  fichier dans `/usr/local/etc/nginx/conf.d/` au lieu d'écrire `nginx.conf`
+  (requires `nginx-base`) : plusieurs sites et recettes web cohabitent sur un
+  même serveur. Sondes monit par site (`monit.d/https-<nom>.conf`,
+  `poudriere-repo.conf`, `check host`), le processus nginx étant surveillé
+  par nginx-base. `static-site` : nom principal + `server_aliases`.
+  `poudriere-nginx` générique : DNS-01 aux conventions du port acme.sh (plus
+  de geste manuel ni de chemin `/usr/local/etc/ssl/acme`), paramètre
+  `public_ip` retiré (écoute sur toutes les adresses, noms inconnus pris par
+  les serveurs par défaut).
+
+=== Modifié
+
+* `static-site`, `static-site-https` — paramètre `server_extra` : directives
+  ajoutées telles quelles dans le bloc `server` du site (ex. un `location`
+  propre à un serveur), renseignées dans le host.yml — la recette reste
+  générique et rien n'est perdu au prochain apply.
+* Rechargements conditionnels (`if_changed: true`, beryl >= 0.6.26) :
+  `static-site`, `static-site-https` (nginx, monit), `zfs-scrub` (monit) ne
+  rechargent plus le service à chaque apply, seulement si une étape
+  précédente de la recette a changé quelque chose. `monit` recharge désormais
+  monit quand il réécrit `monitrc` (ce n'était pas fait). Évite les alertes
+  « Monit instance changed » envoyées à chaque apply (2 par apply constatées
+  sur qwerty le 6 oct.).
+* `acme` — conventions du port FreeBSD `security/acme.sh` : utilisateur
+  `acme` (plus root), home `/var/db/acme/.acme.sh` (où le paquet relie les
+  plugins DNS — corrige « Cannot find DNS API hook for: dns_ovh »),
+  certificats dans `/var/db/acme/certs`, `account.conf` tiré de l'exemple
+  du port, renouvellement par `/usr/local/etc/cron.d/acme` (ligne du port :
+  `lockf`, journal `/var/log/acme.sh.cronjob.log`), rotation par
+  `newsyslog.conf.d/acme.sh.conf`, règle `sudoers.d/acme` limitée à
+  `service nginx reload`. ⚠️ Un serveur déjà équipé de l'ancien schéma
+  (home `/usr/local/etc/acme.sh`, cron de root) doit être migré.
+* `monit` — mails en français : objet `[monit][<fqdn>] <service> ·
+  <catégorie> · <état>` (catégories françaises par type d'événement :
+  présence du service, ressources, connexion, contrôle, démarrage de monit,
+  « alerte » sinon ; l'état reste celui de monit, non traduit) et corps en
+  français (serveur, service, événement, action, date, détail).
+  Charge rapportée au nombre de cœurs (`load_per_core`, défaut 1.5 ; avant :
+  seuil fixe de 4). `sshd` et `cron` surveillés et relancés s'ils tombent.
+  Un contrôle par minute (`poll_interval` 120 → 60 s : relance en moins
+  d'une minute) ; charge, mémoire et swap alertent après 7 contrôles
+  consécutifs (~7 min) pour ignorer les pics. Crée `/usr/local/etc/monit.d`
+  (sinon `Include failed` à chaque démarrage tant que le dossier manque).
+* `zfs-scrub` — planification de la sonde santé au format cron
+  (`check_schedule`, défaut `*/30 * * * *`, une fois par demi-heure) au lieu
+  de `every N cycles`, déprécié par monit 6.0 (avertissement constaté sur
+  qwerty le 6 oct.). Remplace le paramètre `check_cycles`.
+* `smtp-relay` — refaite selon les conventions du système de base : dma
+  du système (MTA par défaut depuis FreeBSD 14) au lieu du paquet `dma`, dont
+  `mailer.conf` pointait sur un `/usr/local/sbin/dma` inexistant (aucun
+  courrier ne partait) ; config dans `/etc/dma/` en `root:mail` 0640 (auth
+  lisible par dma, setgid mail) ; `mailer.conf` = exemple du système ; alias
+  posés dans `/etc/mail/aliases` par `line-in-file` (`root:` et l'attrape-tout
+  `*:` — le courrier de TOUS les utilisateurs part vers la destination), sans
+  écraser les alias système ni le lien `/etc/aliases` ; `sendmail_enable=NONE`.
+  Requiert beryl >= 0.6.26 (`line-in-file`).
+
+=== Ajouté
+
+* `static-site-https` — site statique en HTTPS (nginx-lite) : certificat
+  Let's Encrypt validé par DNS-01 (`dns_ovh`, identifiants OVH du coffre,
+  laissé dans `/var/db/acme/certs` selon le port ;
+  aucune coupure, ni à l'émission ni aux renouvellements), HTTP → HTTPS,
+  durcissement de `static-site` + HSTS, TLS 1.2/1.3, hôte inconnu → 444 en
+  HTTP et HTTPS. Contrôle monit déposé dans `monit.d` (nginx relancé s'il
+  tombe, alerte si le site ne répond plus en HTTPS ou si le certificat
+  expire dans moins de 14 jours). À utiliser à la place de `static-site`.
+* `static-site` — site web statique servi par `nginx-lite` sur le port 80
+  (IPv4 + IPv6) : racine `/usr/local/www/{{ hostname }}` (propriétaire
+  `deploy:www`), `nginx.conf` posé (`server_tokens off`, gzip,
+  `try_files`), nginx démarré puis rechargé si la conf change. Le chemin
+  HTTPS : voir `static-site-https`. Paramètres : `server_name` (défaut `{{ fqdn }}`),
+  `root`, `owner`. Conf durcie : `server_tokens off`, délais courts,
+  `client_max_body_size 1k`, GET/HEAD seulement (`limit_except`), fichiers
+  cachés refusés, en-têtes `X-Content-Type-Options`, `X-Frame-Options`,
+  `Content-Security-Policy: frame-ancestors`, `Referrer-Policy`,
+  `Permissions-Policy`, serveur par défaut en `return 444` (hôte inconnu).
+  Page de test « à supprimer » posée seulement si
+  `index.html` est absent (`if_absent`, requiert beryl >= 0.6.26) : une
+  vraie page n'est jamais écrasée.
+
 == 0.0.30 (14 octobre 2026)
 
 === Ajouté

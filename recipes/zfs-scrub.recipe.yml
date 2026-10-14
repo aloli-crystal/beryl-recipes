@@ -24,10 +24,10 @@ parameters:
     type: string
     default: "0 3 * * 0"
     description: Planification cron du scrub (défaut dimanche 03h00).
-  check_cycles:
+  check_schedule:
     type: string
-    default: "15"
-    description: Intervalle du contrôle santé monit, en nombre de cycles monit.
+    default: "*/30 * * * *"
+    description: Planification du contrôle santé dans monit, au format cron (défaut toutes les 30 min) — syntaxe recommandée par monit 6 à la place de `every N cycles`.
 steps:
   - pkg-install:
       packages: [smartmontools]
@@ -85,9 +85,11 @@ steps:
       content: |
         # Géré par beryl (recette zfs-scrub). Inclus par monitrc.
         check program zfs-health with path "/usr/local/sbin/zfs-health.sh"
-          every {{ check_cycles }} cycles
+          every "{{ check_schedule }}"
           if status != 0 then alert
 
   # monit relit sa conf → prend en compte le nouveau check tout de suite.
   - service-reload:
       name: monit
+      if_changed: true
+      deferred: true

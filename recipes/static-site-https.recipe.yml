@@ -1,0 +1,167 @@
+recipe: static-site-https
+description: |
+  Sert un site web STATIQUE en HTTPS : certificat Let's Encrypt, même
+  durcissement que `static-site` + HSTS. Dépose SON fichier
+  `/usr/local/etc/nginx/conf.d/<server_name>.conf` (nginx.conf appartient à
+  `nginx-base`, dont le :80 par défaut redirige déjà tout vers HTTPS) :
+  plusieurs sites, et d'autres recettes web, cohabitent sur un même serveur.
+
+  Certificat validé par DNS (DNS-01, plugin acme.sh `dns_ovh`) : acme.sh pose
+  un enregistrement TXT temporaire dans la zone via l'API OVH, avec les
+  identifiants OVH du coffre de la société. AUCUN port mobilisé → AUCUNE
+  coupure, ni à l'émission ni aux renouvellements (cron de la recette
+  `acme`), et pas d'œuf-et-poule (nginx ne peut démarrer en HTTPS sans
+  certificat). Prérequis : la zone DNS du nom est chez OVH et la clé OVH de la
+  société a les droits `/domain/zone/*` (ceux de `beryl dns`).
+
+    apply_recipes:
+      - static-site-https                              # nom = fqdn du host
+      - static-site-https: { server_name: "www.example.net" }
+
+  Un SEUL nom par site (`server_name`) ; deux sites sur un même serveur :
+  donnez à chacun sa `root`. Les pages se déposent dans `root`
+  (défaut `/usr/local/www/{{ hostname }}`, propriétaire `deploy:www`) ; tant
+  qu'`index.html` n'existe pas, une page de test (« à supprimer ») est posée,
+  et un `index.html` existant n'est JAMAIS modifié (beryl >= 0.6.26).
+
+  Supervision : si `monit` est installé (recette `monit`), une sonde par site
+  (`/usr/local/etc/monit.d/https-<server_name>.conf`) : le site répond en
+  HTTPS, alerte 14 jours avant l'expiration du certificat (le processus
+  nginx est surveillé par nginx-base).
+
+  L'en-tête `Server: nginx` reste, SANS version (le retirer exige le module
+  headers-more, absent de nginx-lite).
+requires:
+  - acme
+  - nginx-base
+parameters:
+  owner:
+    type: string
+    default: "deploy:www"
+    description: Propriétaire de la racine du site (user ou user:group).
+  root:
+    type: string
+    default: "/usr/local/www/{{ hostname }}"
+    description: Dossier servi (les pages du site).
+  server_extra:
+    type: string
+    default: ""
+    description: |
+      Directives ajoutées TELLES QUELLES dans le bloc `server` du site (ex. un
+      `location` propre à ce serveur). Renseignées dans le host.yml, elles
+      survivent aux apply ; elles ne doivent pas contenir de `{{ }}`.
+  server_name:
+    type: string
+    default: "{{ fqdn }}"
+    description: Nom DNS du site (un seul) — aussi le nom du certificat.
+steps:
+  - directory:
+      path: "{{ root }}"
+      owner: "{{ owner }}"
+      mode: "0755"
+  # Page de TEST, posée seulement si `index.html` est absent (`if_absent`) :
+  # elle ne remplace JAMAIS une vraie page.
+  - file-write:
+      path: "{{ root }}/index.html"
+      owner: "{{ owner }}"
+      mode: "0644"
+      if_absent: true
+      content: |
+        <!doctype html>
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta name="robots" content="noindex">
+          <title>Page de test — {{ server_name }}</title>
+          <style>
+            :root { color-scheme: light dark; }
+            body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; }
+            .note { border-left: 4px solid #d97706; padding: .5rem 1rem; background: rgba(217, 119, 6, .08); }
+            code { font-size: .95em; }
+          </style>
+        </head>
+        <body>
+          <h1>Ça fonctionne.</h1>
+          <p>Le serveur web de <strong>{{ server_name }}</strong> répond en HTTPS.</p>
+          <p class="note">
+            <strong>Fichier de test, à supprimer.</strong>
+            Il a été posé automatiquement par beryl (recette <code>static-site-https</code>)
+            parce que le site n'avait pas encore de page d'accueil.
+            Remplacez-le par votre propre <code>index.html</code> : beryl ne touche
+            jamais à un <code>index.html</code> existant (s'il est simplement effacé,
+            la page de test revient au prochain <code>beryl apply</code>).
+          </p>
+          <p>Racine du site : <code>{{ root }}</code></p>
+        </body>
+        </html>
+  # Certificat AVANT la conf HTTPS (nginx refuserait une conf sans certificat).
+  # Le certificat reste dans CERT_HOME (convention du port acme.sh) ; acme.sh
+  # (utilisateur acme) recharge nginx via la règle sudo de la recette `acme`.
+  - acme-cert:
+      domains: ["{{ server_name }}"]
+      method: dns
+      dns_provider: dns_ovh
+      reloadcmd: "/usr/local/bin/sudo /usr/sbin/service nginx reload"
+  - file-write:
+      path: "/usr/local/etc/nginx/conf.d/{{ server_name }}.conf"
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette static-site-https). Le :80 (défis ACME,
+        # redirection HTTPS) est le serveur par défaut de nginx-base.
+        server {
+            listen      443 ssl;
+            listen      [::]:443 ssl;
+            server_name {{ server_name }};
+
+            ssl_certificate     /var/db/acme/certs/{{ server_name }}_ecc/fullchain.cer;
+            ssl_certificate_key /var/db/acme/certs/{{ server_name }}_ecc/{{ server_name }}.key;
+
+            root  {{ root }};
+            index index.html;
+
+            # Site statique : aucune requête légitime n'envoie de corps.
+            client_max_body_size 1k;
+
+            # En-têtes de sécurité du navigateur (hérités par les locations).
+            # HSTS : le navigateur n'utilisera plus que HTTPS pour ce nom (1 an).
+            add_header Strict-Transport-Security "max-age=31536000" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header X-Frame-Options "DENY" always;
+            add_header Content-Security-Policy "frame-ancestors 'none'" always;
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+            add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+            # Fichiers cachés (.git, .env, .htaccess…) : jamais servis.
+            location ~ /\. {
+                return 404;
+            }
+
+            # Directives propres à ce serveur (paramètre `server_extra`).
+            {{ server_extra }}
+
+            # Lecture seule : GET (et HEAD), toute autre méthode refusée.
+            location / {
+                limit_except GET { deny all; }
+                try_files $uri $uri/ =404;
+            }
+        }
+  # Recharge si le fichier du site a changé (nginx-base a démarré nginx).
+  - service-reload:
+      name: nginx
+      if_changed: true
+  # Supervision (inerte tant que monit n'est pas installé) : le processus
+  # nginx est surveillé par nginx-base ; ici, la sonde HTTPS de CE site.
+  - file-write:
+      path: "/usr/local/etc/monit.d/https-{{ server_name }}.conf"
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette static-site-https).
+        check host https-{{ server_name }} with address {{ server_name }}
+          if failed port 443 protocol https
+             and certificate valid > 14 days
+             for 7 cycles then alert
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true
