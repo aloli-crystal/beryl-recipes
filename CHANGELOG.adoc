@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.35 (14 octobre 2026)
+
+=== Corrigé
+
+* `root-password-lock` — la commande tient sur UNE ligne (lignes du bloc
+  `>-` au même niveau) : indentées, elles gardaient leurs retours à la ligne
+  et le shell de connexion csh refusait `sudo sh -c '…'` (« Unmatched ' »,
+  qwerty). Avec beryl >= 0.6.31, un script multi-ligne passe de toute façon ;
+  la recette reste sur une ligne pour fonctionner aussi avec un beryl plus
+  ancien.
+
 == 0.0.34 (14 octobre 2026)
 
 === Ajouté
