@@ -35,7 +35,7 @@ côté beryl.
 * *Socle* : `base-packages`, `shell-tools`, `freebsd-updates`.
 * *Durcissement* : `ssh-hardening`, `firewall-pf` (opt-in, possède
   `/etc/pf.conf`).
-* *Applicatif* : `acme`, `nginx`, `nginx-lite`, `ruby`.
+* *Applicatif* : `acme`, `nginx-lite`, `nginx-lite-passenger`, `ruby`.
 * *Agrégats* : `post-install` (socle + ssh-hardening),
   `web-server` (ruby + nginx-lite + acme).
 * *À venir* : tests d'intégration FreeBSD en QEMU, puis tag `v1.0.0`

@@ -14,6 +14,36 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.36 (15 octobre 2026)
+
+=== Ajouté
+
+* `nginx-lite-passenger` — même socle que `nginx-lite` (nginx.conf,
+  conf.d/, serveurs par défaut, supervision), avec le paquet
+  `nginx-lite-passenger` du dépôt beryl (HTTP/2 + Passenger). Le module
+  Passenger ne dépend pas de la version de Ruby des applications, choisie à
+  l'exécution par `passenger_ruby` : changer de Ruby ne demande ni rebuild ni
+  renommage.
+
+=== Modifié
+
+* `nginx-lite` — devient le socle nginx (reprend `nginx-base`) : recettes au
+  nom du PAQUET qu'elles installent, plus de nom générique. Elle remplace
+  l'ancienne `nginx-lite`, qui installait seulement le paquet. La bascule
+  retire toute autre variante (`nginx`, `nginx-lite-passenger*`…).
+  `nginx-lite` et `nginx-lite-passenger` posent le même `nginx.conf` : beryl
+  refuse les deux sur un même serveur.
+* `static-site`, `static-site-https`, `poudriere-nginx` — requièrent
+  `nginx-lite`.
+
+=== Retiré
+
+* `nginx-base` — remplacée par `nginx-lite` / `nginx-lite-passenger`. Le
+  paramètre `package` disparaît : on choisit la recette du paquet voulu.
+  Recettes privées à mettre à jour (`requires: nginx-base` → `nginx-lite`).
+* `nginx` — nginx complet : `nginx-lite` (dépôt beryl) a désormais HTTP/2,
+  plus rien n'en dépend (règle : toujours la variante lite).
+
 == 0.0.35 (14 octobre 2026)
 
 === Corrigé

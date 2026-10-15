@@ -3,13 +3,13 @@ description: |
   Sert un site web STATIQUE (HTML, CSS, images…) sur le port 80 (IPv4 et
   IPv6). Crée la racine du site, dépose SON fichier
   `/usr/local/etc/nginx/conf.d/<server_name>.conf` (nginx.conf appartient à
-  `nginx-base`) et recharge nginx si ce fichier change. Idempotent ; plusieurs
+  `nginx-lite`) et recharge nginx si ce fichier change. Idempotent ; plusieurs
   sites cohabitent sur un même serveur (un fichier chacun).
 
   Durci pour du statique : pas de version (`server_tokens off`), délais
-  courts (slowloris, dans nginx-base), pas de corps de requête, GET/HEAD
+  courts (slowloris, dans nginx-lite), pas de corps de requête, GET/HEAD
   seulement, fichiers cachés (`.git`, `.env`…) jamais servis, en-têtes de
-  sécurité navigateur ; hôte inconnu → serveurs par défaut de nginx-base.
+  sécurité navigateur ; hôte inconnu → serveurs par défaut de nginx-lite.
   L'en-tête `Server: nginx` reste (le retirer exige le module headers-more,
   absent de nginx-lite).
 
@@ -30,7 +30,7 @@ description: |
   au besoin, des noms secondaires (`server_aliases`, séparés par des espaces).
   Deux sites sur un même serveur : donnez à chacun sa `root`.
 requires:
-  - nginx-base
+  - nginx-lite
 parameters:
   owner:
     type: string
@@ -134,7 +134,7 @@ steps:
                 try_files $uri $uri/ =404;
             }
         }
-  # Recharge si le fichier du site a changé (nginx-base a démarré nginx).
+  # Recharge si le fichier du site a changé (nginx-lite a démarré nginx).
   - service-reload:
       name: nginx
       if_changed: true

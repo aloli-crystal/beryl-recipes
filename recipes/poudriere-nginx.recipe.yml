@@ -2,7 +2,7 @@ recipe: poudriere-nginx
 description: |
   Sert le dépôt poudriere d'un builder de paquets : SON fichier
   `/usr/local/etc/nginx/conf.d/poudriere.conf` (nginx.conf appartient à
-  `nginx-base`) expose DEUX faces du même dépôt (même sortie, même
+  `nginx-lite`) expose DEUX faces du même dépôt (même sortie, même
   signature ; seuls le nom et le transport changent) :
 
   * face PRIVÉE vRack (HTTP), sur `{{ vrack_ip }}` UNIQUEMENT ;
@@ -17,7 +17,7 @@ description: |
   identifiants OVH du coffre de la société), conventions du port acme.sh
   (recette `acme`) : aucune coupure, aucun geste manuel. Durci comme
   `static-site-https` (GET/HEAD seulement, fichiers cachés refusés, HSTS) ;
-  nom inconnu → serveurs par défaut de nginx-base.
+  nom inconnu → serveurs par défaut de nginx-lite.
 
   Tout ce qui est propre au déploiement est un PARAMÈTRE : `public_domain`,
   `vrack_server_name`. Une société peut surcharger la recette (plusieurs noms
@@ -31,7 +31,7 @@ parameters:
   vrack_server_name: {}
 requires:
   - acme
-  - nginx-base
+  - nginx-lite
   - vrack-interface
 steps:
   # Certificat AVANT la conf (nginx refuserait une conf sans certificat).
@@ -45,7 +45,7 @@ steps:
       mode: "0644"
       content: |
         # Géré par beryl (recette poudriere-nginx). Le :80 public (défis ACME,
-        # redirection HTTPS) est le serveur par défaut de nginx-base.
+        # redirection HTTPS) est le serveur par défaut de nginx-lite.
 
         # Face PRIVÉE vRack (HTTP) : seul serveur sur cette adresse.
         server {

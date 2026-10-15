@@ -3,7 +3,7 @@ description: |
   Sert un site web STATIQUE en HTTPS : certificat Let's Encrypt, même
   durcissement que `static-site` + HSTS. Dépose SON fichier
   `/usr/local/etc/nginx/conf.d/<server_name>.conf` (nginx.conf appartient à
-  `nginx-base`, dont le :80 par défaut redirige déjà tout vers HTTPS) :
+  `nginx-lite`, dont le :80 par défaut redirige déjà tout vers HTTPS) :
   plusieurs sites, et d'autres recettes web, cohabitent sur un même serveur.
 
   Certificat validé par DNS (DNS-01, plugin acme.sh `dns_ovh`) : acme.sh pose
@@ -27,13 +27,13 @@ description: |
   Supervision : si `monit` est installé (recette `monit`), une sonde par site
   (`/usr/local/etc/monit.d/https-<server_name>.conf`) : le site répond en
   HTTPS, alerte 14 jours avant l'expiration du certificat (le processus
-  nginx est surveillé par nginx-base).
+  nginx est surveillé par nginx-lite).
 
   L'en-tête `Server: nginx` reste, SANS version (le retirer exige le module
   headers-more, absent de nginx-lite).
 requires:
   - acme
-  - nginx-base
+  - nginx-lite
 parameters:
   owner:
     type: string
@@ -108,7 +108,7 @@ steps:
       mode: "0644"
       content: |
         # Géré par beryl (recette static-site-https). Le :80 (défis ACME,
-        # redirection HTTPS) est le serveur par défaut de nginx-base.
+        # redirection HTTPS) est le serveur par défaut de nginx-lite.
         server {
             listen      443 ssl;
             listen      [::]:443 ssl;
@@ -146,12 +146,12 @@ steps:
                 try_files $uri $uri/ =404;
             }
         }
-  # Recharge si le fichier du site a changé (nginx-base a démarré nginx).
+  # Recharge si le fichier du site a changé (nginx-lite a démarré nginx).
   - service-reload:
       name: nginx
       if_changed: true
   # Supervision (inerte tant que monit n'est pas installé) : le processus
-  # nginx est surveillé par nginx-base ; ici, la sonde HTTPS de CE site.
+  # nginx est surveillé par nginx-lite ; ici, la sonde HTTPS de CE site.
   - file-write:
       path: "/usr/local/etc/monit.d/https-{{ server_name }}.conf"
       mode: "0600"

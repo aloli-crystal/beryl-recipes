@@ -1,6 +1,10 @@
-recipe: nginx-base
+recipe: nginx-lite-passenger
 description: |
-  SOCLE nginx commun à toutes les recettes web : installe le paquet, pose
+  nginx-lite-passenger : nginx-lite (HTTP/2) + module Passenger, construit
+  par le dépôt beryl. Le Ruby des applications se choisit par
+  `passenger_ruby` (dans `http_extra` ou le fichier du site), sans
+  reconstruire nginx.
+  SOCLE nginx commun aux recettes web : installe `nginx-lite-passenger`, pose
   `nginx.conf` (SEULE recette à l'écrire) et le dossier `conf.d/`, où chaque
   site dépose SON fichier (`conf.d/<nom>.conf`, convention nginx amont).
   Plusieurs sites cohabitent donc sur un même serveur sans s'écraser :
@@ -22,16 +26,13 @@ description: |
   qui reçoit des fichiers).
 
   Paramètres :
-  * `package` : `nginx-lite` (défaut ; celui du dépôt beryl a HTTP/2),
-    `nginx-lite-passenger-ruby<NN>` (idem + Passenger compilé pour Ruby
-    N.N, ex. `nginx-lite-passenger-ruby27`) ou `nginx` (plein). Toutes les
-    variantes nginx sont en CONFLIT (une seule par machine) : si une AUTRE est
-    installée, elle est retirée, la demandée installée et nginx REDÉMARRÉ
-    (nouveau binaire ; la conf, modifiée, est conservée par pkg) — coupure de
-    quelques secondes. Une recette qui exige une variante l'impose par
-    `requires:` en forme map :
-        requires:
-          - nginx-base: { package: nginx-lite-passenger-ruby27 }
+  * Variante nginx : une seule par machine (paquets en CONFLIT). Si une
+    AUTRE est installée (`nginx-lite`, `nginx` plein…), elle est retirée,
+    `nginx-lite-passenger` installé et nginx REDÉMARRÉ (nouveau binaire ; la conf,
+    modifiée, est conservée par pkg) — coupure de quelques secondes.
+    `nginx-lite` et `nginx-lite-passenger` posent le MÊME socle : un serveur
+    ne reçoit que l'une des deux (beryl refuse deux recettes pour un même
+    fichier). ⚠ Garder les deux recettes IDENTIQUES hors nom du paquet.
   * `http_extra` : directives ajoutées TELLES QUELLES à la fin du bloc
     `http` (ex. `include monappli/*.conf;` pour un outil qui exige sa ligne
     dans nginx.conf). Pas de `{{ }}` dedans.
@@ -57,10 +58,6 @@ parameters:
     type: string
     default: ""
     description: Directives ajoutées telles quelles à la fin du bloc http.
-  package:
-    type: string
-    default: nginx-lite
-    description: "`nginx-lite` (défaut), `nginx-lite-passenger-ruby<NN>` ou `nginx` (plein)."
 steps:
   # Bascule de variante : retire toute AUTRE variante nginx installée, installe
   # la demandée et redémarre nginx s'il tournait (un rechargement garderait
@@ -68,13 +65,13 @@ steps:
   # est installée.
   - command:
       run: >-
-        others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger-ruby*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -vx '{{ package }}');
-        pkg delete -y $others && pkg install -y '{{ package }}' &&
+        others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -vx 'nginx-lite-passenger');
+        pkg delete -y $others && pkg install -y 'nginx-lite-passenger' &&
         { service nginx onestatus >/dev/null 2>&1 && service nginx restart || true; }
-      unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger-ruby*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -qvx '{{ package }}'"
+      unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -qvx 'nginx-lite-passenger'"
       show_output: true
   - pkg-install:
-      packages: ["{{ package }}"]
+      packages: ["nginx-lite-passenger"]
   # Défis ACME écrits par acme.sh, qui tourne sous l'utilisateur `acme`
   # (conventions du port, recette `acme`) : le dossier lui appartient.
   - directory:
@@ -89,7 +86,7 @@ steps:
       path: /usr/local/etc/nginx/nginx.conf
       mode: "0644"
       content: |
-        # Géré par beryl (recette nginx-base) — ne pas modifier ici : chaque
+        # Géré par beryl (recette nginx-lite-passenger) — ne pas modifier ici : chaque
         # site a son fichier dans conf.d/.
         worker_processes auto;
         events { worker_connections 1024; }
@@ -158,7 +155,7 @@ steps:
   - service-reload:
       name: nginx
       if_changed: true
-  # Anciennes sondes (recettes d'avant nginx-base, beryl < 0.6.26) qui
+  # Anciennes sondes (recettes d'avant nginx-lite-passenger, beryl < 0.6.26) qui
   # déclaraient chacune `check process nginx` : monit refuse deux services
   # du même nom. La sonde du processus vit désormais ici, seule.
   - file-absent:
@@ -169,7 +166,7 @@ steps:
       path: /usr/local/etc/monit.d/nginx.conf
       mode: "0600"
       content: |
-        # Géré par beryl (recette nginx-base). Sondes HTTPS : un fichier par site.
+        # Géré par beryl (recette nginx-lite-passenger). Sondes HTTPS : un fichier par site.
         check process nginx with pidfile /var/run/nginx.pid
           start program = "/usr/sbin/service nginx start"
           stop program  = "/usr/sbin/service nginx stop"
