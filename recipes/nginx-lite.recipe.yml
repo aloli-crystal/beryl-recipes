@@ -68,10 +68,13 @@ steps:
   # Bascule de variante : retire toute AUTRE variante nginx installée, installe
   # la demandée et redémarre nginx s'il tournait (un rechargement garderait
   # l'ancien binaire). Rien à faire si seule la variante demandée (ou aucune)
-  # est installée.
+  # est installée. Le paquet demandé est TÉLÉCHARGÉ avant toute suppression :
+  # introuvable dans les dépôts (dépôt maison pas encore configuré…) → échec
+  # SANS rien retirer, l'ancien nginx reste en place.
   - command:
       run: >-
         others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -vx '{{ package }}');
+        pkg fetch -qy '{{ package }}' &&
         pkg delete -y $others && pkg install -y '{{ package }}' &&
         { service nginx onestatus >/dev/null 2>&1 && service nginx restart || true; }
       unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -qvx '{{ package }}'"
