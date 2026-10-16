@@ -14,6 +14,27 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.37 (16 octobre 2026)
+
+=== Modifié
+
+* `nginx-lite` — installe le paquet OFFICIEL `nginx-lite`. Règle : un paquet
+  maison ne porte JAMAIS le nom d'un paquet officiel (un `nginx-lite` maison
+  dans un dépôt prioritaire remplaçait l'officiel sans qu'on le voie). Un
+  paquet maison (`nginx-lite-<maison>`, HTTP/2, Passenger…) s'installe par une
+  recette PRIVÉE à son nom, qui impose `nginx-lite: { package: … }` ; les
+  autres recettes web requièrent `nginx-lite` sans argument et beryl fusionne
+  (un seul socle). La bascule retire toute variante `nginx-lite-*`.
+* `static-site-https` — paramètre `http2`, posé tel quel dans le bloc
+  `server`. Vide par défaut : le nginx-lite officiel n'a pas HTTP/2, et même
+  `http2 off;` y est inconnu. `http2: "http2 on;"` avec un nginx maison qui
+  l'a.
+
+=== Retiré
+
+* `nginx-lite-passenger` — Passenger n'existe qu'en paquet maison : recette
+  privée au nom du paquet (`nginx-lite-passenger-<maison>`).
+
 == 0.0.36 (15 octobre 2026)
 
 === Ajouté

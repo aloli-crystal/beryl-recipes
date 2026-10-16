@@ -1,8 +1,7 @@
 recipe: nginx-lite
 description: |
-  nginx-lite : nginx allégé ; celui du dépôt beryl ajoute HTTP/2 (options
-  poudriere), sans autre module.
-  SOCLE nginx commun aux recettes web : installe `nginx-lite`, pose
+  nginx-lite : le paquet OFFICIEL `nginx-lite` (nginx allégé, sans HTTP/2).
+  SOCLE nginx commun aux recettes web : installe le paquet nginx, pose
   `nginx.conf` (SEULE recette à l'écrire) et le dossier `conf.d/`, où chaque
   site dépose SON fichier (`conf.d/<nom>.conf`, convention nginx amont).
   Plusieurs sites cohabitent donc sur un même serveur sans s'écraser :
@@ -24,13 +23,18 @@ description: |
   qui reçoit des fichiers).
 
   Paramètres :
-  * Variante nginx : une seule par machine (paquets en CONFLIT). Si une
-    AUTRE est installée (`nginx-lite-passenger`, `nginx` plein…), elle est retirée,
-    `nginx-lite` installé et nginx REDÉMARRÉ (nouveau binaire ; la conf,
-    modifiée, est conservée par pkg) — coupure de quelques secondes.
-    `nginx-lite` et `nginx-lite-passenger` posent le MÊME socle : un serveur
-    ne reçoit que l'une des deux (beryl refuse deux recettes pour un même
-    fichier). ⚠ Garder les deux recettes IDENTIQUES hors nom du paquet.
+  * Paquet MAISON (HTTP/2, Passenger…) : jamais sous le nom d'un paquet
+    officiel. Une recette PRIVÉE au nom exact du paquet maison (ex.
+    `nginx-lite-maison`) l'impose par `requires:` en forme map :
+        requires:
+          - nginx-lite: { package: nginx-lite-maison }
+    Les autres recettes web (static-site…) requièrent `nginx-lite` sans
+    argument : beryl fusionne, un seul socle, avec le paquet maison. Deux
+    paquets imposés sur un même serveur → refusé (ConflictingRequiredArgs).
+  * Variante nginx : une seule par machine (paquets en CONFLIT). Si une AUTRE
+    est installée (`nginx` plein, une variante maison `nginx-lite-*`…), elle
+    est retirée, la demandée installée et nginx REDÉMARRÉ (nouveau binaire ;
+    la conf, modifiée, est conservée par pkg) — coupure de quelques secondes.
   * `http_extra` : directives ajoutées TELLES QUELLES à la fin du bloc
     `http` (ex. `include monappli/*.conf;` pour un outil qui exige sa ligne
     dans nginx.conf). Pas de `{{ }}` dedans.
@@ -56,6 +60,10 @@ parameters:
     type: string
     default: ""
     description: Directives ajoutées telles quelles à la fin du bloc http.
+  package:
+    type: string
+    default: nginx-lite
+    description: "Paquet nginx : `nginx-lite` (officiel) ; un paquet maison est imposé par la recette privée à son nom."
 steps:
   # Bascule de variante : retire toute AUTRE variante nginx installée, installe
   # la demandée et redémarre nginx s'il tournait (un rechargement garderait
@@ -63,13 +71,13 @@ steps:
   # est installée.
   - command:
       run: >-
-        others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -vx 'nginx-lite');
-        pkg delete -y $others && pkg install -y 'nginx-lite' &&
+        others=$(pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -vx '{{ package }}');
+        pkg delete -y $others && pkg install -y '{{ package }}' &&
         { service nginx onestatus >/dev/null 2>&1 && service nginx restart || true; }
-      unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-passenger*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -qvx 'nginx-lite'"
+      unless: "! pkg query -g %n nginx nginx-devel nginx-full nginx-lite 'nginx-lite-*' nginx-naxsi {{ extra_variants }} 2>/dev/null | grep -qvx '{{ package }}'"
       show_output: true
   - pkg-install:
-      packages: ["nginx-lite"]
+      packages: ["{{ package }}"]
   # Défis ACME écrits par acme.sh, qui tourne sous l'utilisateur `acme`
   # (conventions du port, recette `acme`) : le dossier lui appartient.
   - directory:

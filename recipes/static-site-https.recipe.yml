@@ -35,6 +35,14 @@ requires:
   - acme
   - nginx-lite
 parameters:
+  http2:
+    type: string
+    default: ""
+    description: |
+      Directive HTTP/2 du site, posée TELLE QUELLE dans le bloc `server`. Vide
+      par défaut : le nginx-lite OFFICIEL n'a pas le module HTTP/2, et même
+      `http2 off;` y est inconnu (nginx ne démarrerait plus). Avec un nginx
+      maison qui l'a (recette privée `nginx-lite-<maison>`) : `http2: "http2 on;"`.
   owner:
     type: string
     default: "deploy:www"
@@ -112,6 +120,7 @@ steps:
         server {
             listen      443 ssl;
             listen      [::]:443 ssl;
+            {{ http2 }}
             server_name {{ server_name }};
 
             ssl_certificate     /var/db/acme/certs/{{ server_name }}_ecc/fullchain.cer;
