@@ -2,14 +2,16 @@ recipe: netif-ipv6
 description: |
   Configure l'IPv6 publique STATIQUE d'un serveur. Contexte OVH : ni DHCPv6
   ni RA/SLAAC → l'adresse est statique (`<bloc>::1`, PAS `<bloc>::` qui est
-  l'anycast Subnet-Router et reste en DAD `tentative`) et la passerelle est la
-  link-local `fe80::1` (constante OVH, scopée `%<iface>`).
+  l'anycast Subnet-Router et reste en DAD `tentative`).
 
-  ANCIENNES gammes OVH : la passerelle est GLOBALE, hors du /64 du serveur
-  (`<bloc /56>ff:ff:ff:ff:ff`, valeur exacte dans l'espace client ou l'API
-  OVH `routing.ipv6.gateway`) : la passer en `gateway:` ; la primitive pose
-  alors la route hôte sur le lien vers elle (beryl >= 0.6.26). Symptôme :
-  `ping6 fe80::1%<iface>` sans réponse (qwerty, 8 oct. 2026).
+  Passerelle : celle que l'hébergeur déclare pour CE serveur,
+  `{{ public_ip6_gateway }}` = `ovh.ipv6_gateway` du host.yml, lue dans l'API
+  OVH (`routing.ipv6.gateway`) par `beryl info --refresh` ou `scan
+  --discover` (beryl >= 0.6.60). Selon la gamme, la link-local `fe80::1`
+  (scopée `%<iface>`) ou une adresse GLOBALE hors du /64 du serveur
+  (`<bloc /56>ff:ff:ff:ff:ff` : qwerty, loulou, quantas, tika), pour laquelle
+  la primitive pose la route hôte sur le lien. Champ absent : l'apply
+  s'arrête et dit de lancer `beryl info --refresh`.
 
   Pose la conf dans `rc.conf` (`ifconfig_<iface>_ipv6` + `ipv6_defaultrouter`)
   ET l'active à chaud — SANS couper l'IPv4 : l'adresse est ajoutée en `alias`
@@ -22,7 +24,7 @@ description: |
   surchargeables si un autre hébergeur diffère.
 
     apply_recipes:
-      - netif-ipv6                                   # adresse = ovh.ipv6
+      - netif-ipv6                                   # ovh.ipv6 via ovh.ipv6_gateway
       - netif-ipv6: { gateway: "fe80::1", prefixlen: "64" }   # surcharge
 parameters:
   address:
@@ -31,8 +33,8 @@ parameters:
     description: IPv6 publique du host (défaut = ovh.ipv6, forme <bloc>::1).
   gateway:
     type: string
-    default: "fe80::1"
-    description: Passerelle IPv6 (link-local scopée %iface ; fe80::1 chez OVH).
+    default: "{{ public_ip6_gateway }}"
+    description: Passerelle IPv6 (défaut = ovh.ipv6_gateway, déclarée par OVH).
   prefixlen:
     type: string
     default: "64"

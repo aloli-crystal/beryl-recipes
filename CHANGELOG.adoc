@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.40 (18 octobre 2026)
+
+=== Modifié
+
+* `netif-ipv6` — passerelle par défaut = `{{ public_ip6_gateway }}`
+  (`ovh.ipv6_gateway`, lue dans l'API OVH par `beryl info --refresh`,
+  beryl >= 0.6.60) au lieu de `fe80::1` en dur : plusieurs gammes OVH
+  utilisent une passerelle globale. `gateway:` reste surchargeable.
+
 == 0.0.39 (18 octobre 2026)
 
 === Modifié
