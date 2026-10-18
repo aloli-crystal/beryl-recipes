@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.39 (18 octobre 2026)
+
+=== Modifié
+
+* `sshd-auth-keys-only` — `PermitRootLogin` suit `{{ root_ssh_login }}`
+  (beryl >= 0.6.58) : `no`, root coupé, comme le pose le bootstrap ;
+  `prohibit-password` seulement avec `/home` chiffré (porte de secours).
+  Paramètre `permit_root_login` pour surcharger. Avant : `prohibit-password`
+  partout, masqué sur les serveurs récents par le `no` du bootstrap.
+
 == 0.0.38 (16 octobre 2026)
 
 === Corrigé
