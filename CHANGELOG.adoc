@@ -14,6 +14,26 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.42 (19 octobre 2026)
+
+=== Ajouté
+
+* `ipsec-site-to-site` — tunnel IPsec site à site (strongSwan/swanctl,
+  IKEv2, clé partagée au coffre `IPSEC_PSK`) vers une passerelle partenaire.
+  IKE sur l'IP publique, Phase 2 sur une adresse privée /32 posée sur une
+  loopback dédiée (`lo1`) ; politique `trap` installée d'emblée → le noyau
+  refuse tout échange en clair entre `local_ts_ip` et `remote_ts`.
+* `syslogd-local-only` — syslogd sans socket réseau (`syslogd_flags="-ss"`) :
+  ferme l'écoute UDP 514 ouverte par défaut sur toutes les adresses.
+* `db-dump-signed` — lot nocturne pour un jumeau de continuité
+  (`twin-guard`) : dump cohérent (MariaDB ou PostgreSQL) → zstd → age,
+  manifeste `twin-bundle/1` signé (`ssh-keygen -Y sign`, clé au coffre
+  `TWIN_SIGNING_KEY__<HÔTE>`), archive ustar ; compte `twin-pull` en lecture
+  seule du dernier lot (commande forcée `twin-serve`) ; alerte monit.
+* `twin-push` — relais horaire des lots vers le jumeau, par le tunnel IPsec
+  (`bind_address`), clés d'hôte vérifiées strictement ; clé du relais
+  générée sur place ; alerte monit si rien relayé depuis 26 h.
+
 == 0.0.41 (19 octobre 2026)
 
 === Modifié

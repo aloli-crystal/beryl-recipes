@@ -1,0 +1,147 @@
+recipe: ipsec-site-to-site
+description: |
+  Tunnel IPsec site à site (strongSwan, IKEv2, clé partagée) vers la passerelle
+  d'un partenaire (FortiGate, Azure VPN Gateway…), en mode POLITIQUE (pas de
+  VTI). Le trafic du tunnel ne sort PAS de l'IP publique du serveur mais d'une
+  adresse privée posée sur une LOOPBACK dédiée (`lo1` par défaut) :
+
+    IKE (UDP 500/4500)   : {{ public_ip }}  ⇄  remote_addrs (IP publique d'en face)
+    Phase 2 (local_ts)   : local_ts_ip/32  ⇄  remote_ts (hôte(s) d'en face)
+
+  Les applications qui doivent passer par le tunnel écoutent sur / se lient à
+  `local_ts_ip` (ex. `ssh -b 10.255.255.1 …`). sshd écoute déjà sur toutes les
+  adresses : rien à changer pour un SSH entrant depuis `remote_ts`.
+
+  « PAR LE TUNNEL SEULEMENT » : la politique est installée dès le démarrage
+  (`start_action = trap`) au niveau `require` dans les DEUX sens. Le noyau
+  REFUSE donc un paquet en clair de `remote_ts` vers `local_ts_ip` et
+  n'émet jamais en clair vers `remote_ts` depuis `local_ts_ip` (paquet retenu
+  le temps de négocier le SA).
+
+  CLÉ PARTAGÉE (PSK) : au coffre sous `IPSEC_PSK` (variante par serveur
+  `IPSEC_PSK__<HÔTE>` prioritaire), transmise à l'équipe d'en face par un canal
+  séparé. Générez-la avec `openssl rand -base64 33` (sans guillemet `"`).
+
+  PROPOSITIONS : `ike_proposals` / `esp_proposals` DOIVENT reprendre celles du
+  formulaire de la passerelle d'en face (syntaxe strongSwan, ex.
+  `aes256-sha256-modp2048` ; `esp_proposals` avec un groupe DH = PFS activé).
+
+  PARE-FEU : si pf est actif sur le serveur, ouvrez en plus (`pf-rule`) :
+    pass in quick proto udp from <remote_addrs> to port { 500 4500 } keep state
+    pass in quick proto esp from <remote_addrs>
+    pass in quick proto tcp from <remote_ts> to <local_ts_ip> port 22 keep state
+
+  CONTRÔLE : `swanctl --list-sas`, `swanctl --list-pols`, `setkey -DP`,
+  `ifconfig lo1`.
+parameters:
+  name:
+    type: string
+    default: partner
+    description: Nom de la connexion (fichier conf.d/<name>.conf, sans espace).
+  remote_addrs:
+    type: string
+    default: ""
+    description: IP publique de la passerelle d'en face (obligatoire).
+  remote_ts:
+    type: string
+    default: ""
+    description: Réseau/hôte d'en face joint par le tunnel (ex. 10.32.4.195/32).
+  local_ts_ip:
+    type: string
+    default: "10.255.255.1"
+    description: Adresse privée locale du tunnel (posée en /32 sur la loopback).
+  loopback_iface:
+    type: string
+    default: lo1
+  ike_proposals:
+    type: string
+    default: "aes256-sha256-modp2048"
+  esp_proposals:
+    type: string
+    default: "aes256-sha256-modp2048"
+  ike_lifetime:
+    type: string
+    default: "28800s"
+    description: Durée de vie Phase 1 (rekey_time IKE).
+  esp_lifetime:
+    type: string
+    default: "3600s"
+    description: Durée de vie Phase 2 (rekey_time CHILD_SA).
+steps:
+  # Garde : sans passerelle ni réseau d'en face, la conf serait invalide.
+  - command:
+      run: "echo 'ipsec-site-to-site : remote_addrs et remote_ts obligatoires' >&2; exit 1"
+      unless: "test -n '{{ remote_addrs }}' -a -n '{{ remote_ts }}'"
+  - pkg-install:
+      packages: [strongswan]
+
+  # Pile IPsec du noyau : GENERIC n'a que IPSEC_SUPPORT, le module se charge.
+  - command:
+      run: "kldload -n ipsec"
+      unless: "sysctl -n net.inet.ipsec.def_policy >/dev/null 2>&1"
+  - command:
+      run: "sysrc kld_list+=\" ipsec\" >/dev/null"
+      unless: "sysrc -n kld_list 2>/dev/null | tr ' ' '\\n' | grep -qx ipsec"
+
+  # Loopback dédiée portant l'adresse du tunnel (persistante + immédiate).
+  - command:
+      run: "sysrc cloned_interfaces+=\" {{ loopback_iface }}\" >/dev/null"
+      unless: "sysrc -n cloned_interfaces 2>/dev/null | tr ' ' '\\n' | grep -qx {{ loopback_iface }}"
+  - sysrc-set:
+      key: "ifconfig_{{ loopback_iface }}"
+      value: "inet {{ local_ts_ip }}/32"
+  - command:
+      run: |
+        ifconfig {{ loopback_iface }} >/dev/null 2>&1 || ifconfig {{ loopback_iface }} create
+        ifconfig {{ loopback_iface }} inet {{ local_ts_ip }}/32 alias
+      unless: "ifconfig {{ loopback_iface }} 2>/dev/null | grep -q 'inet {{ local_ts_ip }} '"
+
+  - secret-file:
+      path: "/usr/local/etc/swanctl/conf.d/{{ name }}.conf"
+      mode: "0600"
+      owner: root:wheel
+      env:
+        "@@PSK@@": IPSEC_PSK
+      content: |
+        # Géré par beryl (recette ipsec-site-to-site). Édition manuelle écrasée.
+        connections {
+          {{ name }} {
+            version = 2
+            local_addrs = {{ public_ip }}
+            remote_addrs = {{ remote_addrs }}
+            proposals = {{ ike_proposals }}
+            rekey_time = {{ ike_lifetime }}
+            dpd_delay = 30s
+            local {
+              auth = psk
+              id = {{ public_ip }}
+            }
+            remote {
+              auth = psk
+            }
+            children {
+              {{ name }} {
+                local_ts = {{ local_ts_ip }}/32
+                remote_ts = {{ remote_ts }}
+                esp_proposals = {{ esp_proposals }}
+                rekey_time = {{ esp_lifetime }}
+                start_action = trap
+                dpd_action = restart
+                close_action = trap
+              }
+            }
+          }
+        }
+
+        secrets {
+          ike-{{ name }} {
+            secret = "@@PSK@@"
+          }
+        }
+
+  - service-enable:
+      name: strongswan
+  # `reload` du rc.d = swanctl --load-all (pas de coupure des SA sains).
+  - service-reload:
+      name: strongswan
+      if_changed: true

@@ -1,0 +1,20 @@
+recipe: syslogd-local-only
+description: |
+  syslogd du système de base SANS socket réseau (`syslogd_flags="-ss"`).
+  Par défaut FreeBSD (`-s`), syslogd garde une socket UDP 514 ouverte sur
+  toutes les adresses : n'importe qui peut injecter de fausses lignes dans les
+  journaux ou les saturer. Avec `-ss`, plus aucune écoute ; les journaux locaux
+  ne changent pas.
+
+  ⚠️ Un serveur COLLECTEUR de journaux (réception syslog distante) ne doit pas
+  recevoir cette recette : retirez-la de ses `apply_recipes`.
+
+  CONTRÔLE : `sockstat -46l | grep syslogd` ne doit rien afficher.
+steps:
+  - sysrc-set:
+      key: syslogd_flags
+      value: "-ss"
+  # syslogd ne relit ses options qu'au démarrage.
+  - service-restart:
+      name: syslogd
+      if_changed: true

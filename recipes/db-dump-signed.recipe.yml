@@ -1,0 +1,216 @@
+recipe: db-dump-signed
+description: |
+  Lot de base de données SIGNÉ pour un jumeau de continuité (`twin-guard`) :
+  chaque nuit, dump cohérent → zstd → chiffrement age pour la clé du jumeau,
+  manifeste `twin-bundle/1` signé Ed25519 (`ssh-keygen -Y sign`), archive
+  ustar déposée dans `/var/db/twin/<name>/outbox/`. Le dump ne touche jamais
+  le disque en clair ; ce serveur ne garde que des lots chiffrés.
+
+  RÉCUPÉRATION : le compte `twin-pull` (clé `pull_key`, commande forcée
+  `/usr/local/libexec/twin-serve <name>`) ne peut QUE lire le lot le plus
+  récent, et seulement s'il est plus récent que la séquence demandée. C'est
+  la recette `twin-push` (sur le serveur relais) qui l'appelle.
+
+  CLÉ DE SIGNATURE (une fois, hors serveur) :
+    ssh-keygen -t ed25519 -N "" -C twin-<name> -f twin-signing
+  Mettez `base64 -i twin-signing` (une ligne) au coffre sous
+  `TWIN_SIGNING_KEY__<HÔTE>` (propre à ce serveur) ; la ligne
+  `<name> <contenu de twin-signing.pub>` va dans `allowed_signers` du jumeau.
+
+  `recipient` = clé PUBLIQUE age du jumeau (`age1…`), générée sur le jumeau.
+
+  MOTEURS : `mariadb` (`mariadb-dump --single-transaction`, base InnoDB) ou
+  `postgresql` (`pg_dump -Fc`, compte `postgres`). Jamais de copie des
+  fichiers d'une base en service.
+
+  SUPERVISION : alerte monit si aucun lot produit depuis `alert_hours`.
+  Un échec du script part par mail (sortie du cron).
+requires:
+  - monit
+parameters:
+  name:
+    type: string
+    default: ""
+    description: Émetteur des lots (principal allowed_signers du jumeau), ex. `app-client`.
+  engine:
+    type: string
+    default: mariadb
+    description: "`mariadb` ou `postgresql`."
+  database:
+    type: string
+    default: ""
+    description: Base à exporter.
+  recipient:
+    type: string
+    default: ""
+    description: Clé publique age du jumeau (`age1…`).
+  app_release:
+    type: string
+    default: unknown
+    description: Version de l'application, recopiée dans le manifeste.
+  pull_key:
+    type: string
+    default: ""
+    description: Clé publique SSH du relais (`twin-push`) autorisée à lire les lots.
+  schedule:
+    type: string
+    default: "15 2 * * *"
+  keep:
+    type: string
+    default: "7"
+    description: Nombre de lots gardés dans l'outbox.
+  alert_hours:
+    type: string
+    default: "26"
+steps:
+  - command:
+      run: "echo 'db-dump-signed : name, database et recipient obligatoires' >&2; exit 1"
+      unless: "test -n '{{ name }}' -a -n '{{ database }}' -a -n '{{ recipient }}'"
+  - pkg-install:
+      packages: [age]
+
+  # Compte de lecture des lots, sans mot de passe ; sshd lance la commande
+  # forcée par son shell.
+  - user-create:
+      name: twin-pull
+      shell: /bin/sh
+      home: /home/twin-pull
+      comment: "Twin bundle reader"
+  - directory:
+      path: /home/twin-pull/.ssh
+      owner: twin-pull:twin-pull
+      mode: "0700"
+  - file-write:
+      path: /home/twin-pull/.ssh/authorized_keys
+      owner: twin-pull:twin-pull
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette db-dump-signed) : lecture seule du dernier lot.
+        command="/usr/local/libexec/twin-serve {{ name }}",restrict {{ pull_key }}
+
+  - directory:
+      path: /usr/local/etc/twin
+      owner: root:wheel
+      mode: "0700"
+  - directory:
+      path: "/var/db/twin/{{ name }}/state"
+      owner: root:wheel
+      mode: "0700"
+  - directory:
+      path: "/var/db/twin/{{ name }}/outbox"
+      owner: root:twin-pull
+      mode: "0750"
+  - secret-file:
+      path: "/usr/local/etc/twin/{{ name }}.key.b64"
+      mode: "0600"
+      owner: root:wheel
+      per_host: true
+      env:
+        "@@KEY@@": TWIN_SIGNING_KEY
+      content: |
+        @@KEY@@
+  - file-write:
+      path: "/usr/local/etc/twin/{{ name }}.conf"
+      owner: root:wheel
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette db-dump-signed). Lu par twin-dump.
+        issuer='{{ name }}'
+        engine='{{ engine }}'
+        database='{{ database }}'
+        recipient='{{ recipient }}'
+        app_release='{{ app_release }}'
+        keep='{{ keep }}'
+        key_b64='/usr/local/etc/twin/{{ name }}.key.b64'
+        outbox='/var/db/twin/{{ name }}/outbox'
+        state='/var/db/twin/{{ name }}/state'
+
+  - file-write:
+      path: /usr/local/libexec/twin-dump
+      owner: root:wheel
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette db-dump-signed). Édition manuelle écrasée.
+        # Usage : twin-dump <conf>
+        # Lot twin-bundle/1 : dump → zstd → age, manifeste signé, archive
+        # ustar déposée dans l'outbox. Muet en cas de succès (cron).
+        set -eu
+        set -o pipefail
+        umask 077
+        . "$1"
+        case "${database}" in
+          ''|*[!A-Za-z0-9_]*) echo "twin-dump : nom de base invalide" >&2; exit 2 ;;
+        esac
+        case "${app_release}" in
+          ''|*[!A-Za-z0-9._+-]*) echo "twin-dump : app_release invalide" >&2; exit 2 ;;
+        esac
+        work=$(mktemp -d "${outbox}/.work.XXXXXX")
+        trap 'rm -rf "${work}"' EXIT
+        last=$(cat "${state}/sequence" 2>/dev/null || echo 0)
+        seq=$((last + 1))
+        case "${engine}" in
+          mariadb)
+            /usr/local/bin/mariadb-dump --single-transaction --quick --routines --triggers --events "${database}" ;;
+          postgresql)
+            /usr/bin/su postgres -c "/usr/local/bin/pg_dump -Fc ${database}" ;;
+          *)
+            echo "twin-dump : moteur ${engine} inconnu" >&2; exit 2 ;;
+        esac | /usr/bin/zstd -q -T0 | /usr/local/bin/age -r "${recipient}" -o "${work}/payload.age"
+        {
+          echo "format: twin-bundle/1"
+          echo "kind: data"
+          echo "issuer: ${issuer}"
+          echo "created_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "sequence: ${seq}"
+          echo "engine: ${engine}"
+          echo "payload_sha256: $(sha256 -q "${work}/payload.age")"
+          echo "payload_size: $(stat -f %z "${work}/payload.age")"
+          echo "app_release: ${app_release}"
+        } > "${work}/manifest"
+        openssl base64 -d -A -in "${key_b64}" -out "${work}/key"
+        ssh-keygen -Y sign -q -f "${work}/key" -n twin-guard < "${work}/manifest" > "${work}/manifest.sig"
+        rm -f "${work}/key"
+        tar --format ustar -cf "${work}/lot" -C "${work}" manifest manifest.sig payload.age
+        chgrp twin-pull "${work}/lot"
+        chmod 0640 "${work}/lot"
+        mv "${work}/lot" "${outbox}/$(printf '%s-%08d.twin.tar' "${issuer}" "${seq}")"
+        echo "${seq}" > "${state}/sequence"
+        date +%s > "${state}/last_success"
+        ls -1t "${outbox}"/*.twin.tar | tail -n +$((keep + 1)) | xargs rm -f
+  - file-write:
+      path: /usr/local/libexec/twin-serve
+      owner: root:wheel
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette db-dump-signed). Commande forcée du compte
+        # twin-pull : $1 = émetteur (fixé par authorized_keys). Le client
+        # envoie la dernière séquence qu'il a ; on renvoie le lot le plus
+        # récent s'il est plus récent, sinon code 3 (rien de neuf).
+        set -eu
+        outbox="/var/db/twin/$1/outbox"
+        since="${SSH_ORIGINAL_COMMAND:-0}"
+        case "${since}" in
+          ''|*[!0-9]*) echo "twin-serve : séquence attendue" >&2; exit 2 ;;
+        esac
+        newest=$(ls -1 "${outbox}" | grep '\.twin\.tar$' | sort | tail -n 1)
+        [ -n "${newest}" ] || exit 3
+        seq=${newest%.twin.tar}
+        seq=$(echo "${seq##*-}" | sed 's/^0*//')
+        [ "${seq:-0}" -gt "${since}" ] || exit 3
+        exec cat "${outbox}/${newest}"
+
+  - cron-entry:
+      user: root
+      entry: "{{ schedule }} /usr/local/libexec/twin-dump /usr/local/etc/twin/{{ name }}.conf"
+  - file-write:
+      path: "/usr/local/etc/monit.d/twin-dump-{{ name }}.conf"
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette db-dump-signed).
+        check file twin-dump-{{ name }} with path /var/db/twin/{{ name }}/state/last_success
+          if timestamp > {{ alert_hours }} hours then alert
+  - service-reload:
+      name: monit
+      if_changed: true

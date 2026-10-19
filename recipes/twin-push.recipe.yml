@@ -1,0 +1,157 @@
+recipe: twin-push
+description: |
+  Relais des lots signés (`db-dump-signed`) vers un jumeau de continuité
+  (`twin-guard`) : toutes les heures, demande au serveur source le lot le
+  plus récent (s'il est plus récent que le dernier relayé), puis le pousse au
+  jumeau. Le relais ne voit que des lots chiffrés : il ne peut ni les lire ni
+  les fabriquer.
+
+  CHEMIN :
+    source (compte twin-pull, commande forcée twin-serve)
+      → ce serveur → jumeau (compte twin, commande forcée `twin-guard accept`)
+
+  ADRESSE SOURCE : `bind_address` est l'adresse locale du tunnel IPsec
+  (`local_ts_ip` de `ipsec-site-to-site`). Sans elle, la connexion partirait
+  de l'IP publique, hors politique IPsec, et n'arriverait pas.
+
+  CLÉ DU RELAIS : générée sur ce serveur au premier apply (jamais exportée) ;
+  sa clé PUBLIQUE est affichée une fois. Elle va :
+    * dans `pull_key` de `db-dump-signed` sur le serveur source ;
+    * dans `authorized_keys` du compte `twin` du jumeau, avec
+      `command="/usr/local/bin/twin-guard accept",restrict`.
+  Relire : `cat /var/db/twin-push/id_ed25519.pub`.
+
+  CLÉS D'HÔTE (`source_host_key`, `target_host_key`) : `ssh-ed25519 AAAA…`
+  sans nom. Vérification stricte : clé absente ou différente = refus.
+
+  SUPERVISION : alerte monit si aucun lot relayé depuis `alert_hours` —
+  bien avant le délai de silence du jumeau (3 à 5 jours). Un échec part par
+  mail (sortie du cron).
+requires:
+  - monit
+parameters:
+  name:
+    type: string
+    default: ""
+    description: Émetteur des lots (même `name` que db-dump-signed).
+  source_host:
+    type: string
+    default: ""
+    description: Serveur source des lots (adresse vRack de préférence).
+  source_host_key:
+    type: string
+    default: ""
+  source_user:
+    type: string
+    default: twin-pull
+  target_host:
+    type: string
+    default: ""
+    description: Jumeau (adresse jointe par le tunnel).
+  target_host_key:
+    type: string
+    default: ""
+  target_user:
+    type: string
+    default: twin
+  bind_address:
+    type: string
+    default: "10.255.255.1"
+    description: Adresse locale du tunnel IPsec (local_ts_ip).
+  schedule:
+    type: string
+    default: "45 * * * *"
+  alert_hours:
+    type: string
+    default: "26"
+steps:
+  - command:
+      run: "echo 'twin-push : name, source_host et target_host obligatoires' >&2; exit 1"
+      unless: "test -n '{{ name }}' -a -n '{{ source_host }}' -a -n '{{ target_host }}'"
+  - directory:
+      path: /var/db/twin-push
+      owner: root:wheel
+      mode: "0700"
+  - command:
+      run: |
+        ssh-keygen -q -t ed25519 -N "" -C "twin-push@{{ hostname }}" -f /var/db/twin-push/id_ed25519
+        cat /var/db/twin-push/id_ed25519.pub
+      unless: "test -f /var/db/twin-push/id_ed25519"
+      show_output: true
+  - directory:
+      path: "/var/db/twin-push/{{ name }}"
+      owner: root:wheel
+      mode: "0700"
+  - file-write:
+      path: "/var/db/twin-push/{{ name }}/known_hosts"
+      owner: root:wheel
+      mode: "0600"
+      content: |
+        {{ source_host }} {{ source_host_key }}
+        {{ target_host }} {{ target_host_key }}
+  - directory:
+      path: /usr/local/etc/twin
+      owner: root:wheel
+      mode: "0700"
+  - file-write:
+      path: "/usr/local/etc/twin/{{ name }}-push.conf"
+      owner: root:wheel
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette twin-push). Lu par twin-push.
+        name='{{ name }}'
+        source_host='{{ source_host }}'
+        source_user='{{ source_user }}'
+        target_host='{{ target_host }}'
+        target_user='{{ target_user }}'
+        bind_address='{{ bind_address }}'
+  - file-write:
+      path: /usr/local/libexec/twin-push
+      owner: root:wheel
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette twin-push). Édition manuelle écrasée.
+        # Usage : twin-push <conf>
+        # Relaie le lot le plus récent de la source vers le jumeau.
+        # Muet quand il n'y a rien de neuf ou en cas de succès (cron).
+        set -eu
+        umask 077
+        . "$1"
+        dir="/var/db/twin-push/${name}"
+        ssh_opts="-i /var/db/twin-push/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=${dir}/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=30"
+        last=$(cat "${dir}/last_sequence" 2>/dev/null || echo 0)
+        lot="${dir}/lot.tar"
+        trap 'rm -f "${lot}"' EXIT
+        rc=0
+        ssh ${ssh_opts} "${source_user}@${source_host}" "${last}" > "${lot}" || rc=$?
+        if [ "${rc}" -eq 3 ]; then
+          exit 0
+        fi
+        if [ "${rc}" -ne 0 ]; then
+          echo "twin-push ${name} : récupération sur ${source_host} impossible (code ${rc})" >&2
+          exit 1
+        fi
+        seq=$(tar -xOf "${lot}" manifest | sed -n 's/^sequence: //p')
+        reply=$(ssh ${ssh_opts} -b "${bind_address}" "${target_user}@${target_host}" < "${lot}" 2>&1) || true
+        case "${reply}" in
+          OK\ *) ;;
+          *)
+            echo "twin-push ${name} : lot ${seq} refusé ou jumeau injoignable : ${reply}" >&2
+            exit 1 ;;
+        esac
+        echo "${seq}" > "${dir}/last_sequence"
+        date +%s > "${dir}/last_success"
+  - cron-entry:
+      user: root
+      entry: "{{ schedule }} /usr/local/libexec/twin-push /usr/local/etc/twin/{{ name }}-push.conf"
+  - file-write:
+      path: "/usr/local/etc/monit.d/twin-push-{{ name }}.conf"
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette twin-push).
+        check file twin-push-{{ name }} with path /var/db/twin-push/{{ name }}/last_success
+          if timestamp > {{ alert_hours }} hours then alert
+  - service-reload:
+      name: monit
+      if_changed: true
