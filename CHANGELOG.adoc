@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.41 (19 octobre 2026)
+
+=== Modifié
+
+* `monit` — un mail = une action à faire. Alertes en LISTE BLANCHE
+  (ressources, connexion, contrôle, relance en échec) au lieu du filet
+  « tout sauf » : service tombé puis relancé, changement de PID et
+  (re)démarrage de monit à chaque apply ne vont plus qu'au syslog. sshd et
+  cron : `if 3 restarts within 5 cycles then unmonitor` → alerte
+  « relance en échec » seulement si le service ne revient pas. Sonde de
+  charge et paramètre `load_per_core` retirés.
+* `nginx-lite` — même règle de relance pour la sonde du processus nginx.
+* `periodic-quiet` — rapports daily/weekly/monthly réduits aux
+  avertissements (`*_show_success` / `*_show_info` à `NO`) ; rapport de
+  sécurité sans les sections vides (`security_show_success="NO"`), les
+  vulnérabilités restent.
+
 == 0.0.40 (18 octobre 2026)
 
 === Modifié

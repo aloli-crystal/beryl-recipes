@@ -1,15 +1,26 @@
 recipe: periodic-quiet
 description: |
-  Allège le rapport quotidien de sécurité de periodic(8) (« <host> daily
-  security run output ») pour que les vulnérabilités sautent aux yeux.
+  Réduit les rapports de periodic(8) à ce qui appelle une action : plus de
+  « daily run output » ni de rapports hebdo/mensuels de routine, et un
+  rapport de sécurité qui ne garde que les vraies trouvailles.
 
-  POURQUOI : sur un serveur dont le port 22 est public, la section « login
-  failures » (script `800.loginfail`) recopie chaque jour TOUTES les
-  tentatives SSH des robots — ~2 500 lignes sur pkg le 13 oct. 2026 — et
-  noie les deux sections utiles : vulnérabilités du système de base
-  (`405.pkg-base-audit`) et des paquets (`410.pkg-audit`), qui restent
-  actives. Les tentatives restent journalisées dans /var/log/auth.log ;
-  seul leur recopiage dans le courriel disparaît.
+  POURQUOI : un mail = une action à faire. Le « daily run output » d'un
+  serveur sain n'est que du bruit (fichiers périmés nettoyés, sauvegarde de
+  passwd, `df`, `netstat`, uptime…) ; disque, ZFS et SMART sont déjà
+  surveillés par monit (recettes `monit` et `zfs-scrub`), qui alerte
+  au-delà d'un seuil. Pour daily/weekly/monthly, seuls les AVERTISSEMENTS
+  (code retour > 1 d'un script) restent envoyés ; un rapport vide n'est pas
+  envoyé du tout.
+
+  Rapport de SÉCURITÉ (« <host> daily security run output ») : les sections
+  sans rien à signaler disparaissent (`security_show_success="NO"`), mais
+  les INFORMATIONS restent — c'est là que sortent les vulnérabilités du
+  système de base (`405.pkg-base-audit`) et des paquets (`410.pkg-audit`).
+  La section « login failures » (script `800.loginfail`) est coupée : sur un
+  serveur dont le port 22 est public, elle recopie chaque jour TOUTES les
+  tentatives SSH des robots (~2 500 lignes sur pkg le 13 oct. 2026) et
+  noie les vulnérabilités. Les tentatives restent journalisées dans
+  /var/log/auth.log ; seul leur recopiage dans le courriel disparaît.
 
   /etc/periodic.conf est le fichier prévu pour les réglages locaux (lu après
   /etc/defaults/periodic.conf) ; il n'existe pas sur une installation neuve.
@@ -29,6 +40,17 @@ steps:
       content: |
         # Géré par beryl (recette periodic-quiet). NE PAS éditer à la main.
         # Défauts : /etc/defaults/periodic.conf.
+
+        # Rapports de routine : seuls les avertissements sont envoyés.
+        daily_show_success="NO"
+        daily_show_info="NO"
+        weekly_show_success="NO"
+        weekly_show_info="NO"
+        monthly_show_success="NO"
+        monthly_show_info="NO"
+
+        # Sécurité : sections vides masquées ; vulnérabilités (info) gardées.
+        security_show_success="NO"
 
         # Tentatives SSH : seulement dans /var/log/auth.log, plus dans le
         # courriel quotidien de sécurité.

@@ -40,8 +40,8 @@ description: |
     dans nginx.conf). Pas de `{{ }}` dedans.
 
   Supervision (inerte tant que monit n'est pas installé) : nginx relancé
-  s'il tombe (`monit.d/nginx.conf`) ; chaque site ajoute SA sonde HTTPS
-  dans son propre fichier.
+  sans mail s'il tombe, alerte s'il ne revient pas (`monit.d/nginx.conf`) ;
+  chaque site ajoute SA sonde HTTPS dans son propre fichier.
 requires:
   - acme
 parameters:
@@ -179,6 +179,7 @@ steps:
         check process nginx with pidfile /var/run/nginx.pid
           start program = "/usr/sbin/service nginx start"
           stop program  = "/usr/sbin/service nginx stop"
+          if 3 restarts within 5 cycles then unmonitor
   - service-reload:
       name: monit
       if_changed: true
