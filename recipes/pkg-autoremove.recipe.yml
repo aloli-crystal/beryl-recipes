@@ -1,0 +1,26 @@
+recipe: pkg-autoremove
+description: |
+  Retire les paquets ORPHELINS (`pkg autoremove`) en FIN d'apply, après
+  toutes les autres recettes : dépendances qu'un paquet retiré ou remplacé
+  laisse derrière lui (ex. python3xx, perl5, p5-* du `git` complet remplacé
+  par `git-lite`).
+
+  POURQUOI : un paquet installé que plus rien n'utilise reste une surface
+  d'attaque, et ses avis vuxml s'accumulent dans le rapport quotidien de
+  sécurité. Recette générale, à mettre dans `_default.yml` : aucune recette
+  n'a à gérer ses propres restes.
+
+  `pkg autoremove` ne retire QUE les paquets installés comme dépendance
+  (`pkg query %a` = 1) que plus rien ne requiert ; un paquet installé
+  explicitement (par une recette ou à la main) n'est jamais touché.
+  L'essai à blanc dit seulement s'il y a des orphelins ; leur liste :
+  `pkg autoremove -n` sur le serveur.
+
+  Étape `deferred` : jouée une seule fois, après toutes les recettes de
+  l'apply (donc après chaque `pkg-remove`), et aussi après un échec.
+steps:
+  - command:
+      run: "pkg autoremove -y"
+      unless: "pkg autoremove -n | grep -q 'Nothing to do'"
+      show_output: true
+      deferred: true

@@ -14,6 +14,19 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.44 (21 octobre 2026)
+
+=== Ajouté
+
+* `pkg-autoremove` — retire les paquets orphelins (`pkg autoremove`) en fin
+  d'apply (étape `deferred`), après toutes les autres recettes. Recette
+  générale, à mettre dans `_default.yml`.
+
+=== Modifié
+
+* `git-lite` — paramètre `autoremove` retiré : les dépendances orphelines du
+  `git` complet partent par `pkg-autoremove`.
+
 == 0.0.42 (19 octobre 2026)
 
 === Ajouté

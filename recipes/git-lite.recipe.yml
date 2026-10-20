@@ -15,23 +15,10 @@ description: |
   (conflit) → `git` est d'abord retiré, puis `git-lite` installé (quelques
   secondes sans git). Si un paquet dépend de `git`, `pkg delete` le retire
   aussi : vérifiez le dry-run. Les dépendances devenues orphelines (python3xx,
-  perl5, p5-*) restent installées ; `autoremove: "oui"` lance `pkg autoremove`
-  pour les retirer (il ne supprime que les paquets installés comme
-  dépendance et que plus rien ne requiert).
-parameters:
-  autoremove:
-    type: string
-    default: ""
-    description: Non vide (ex. "oui") → `pkg autoremove -y` après la bascule, pour retirer les dépendances orphelines du git complet.
+  perl5, p5-*) sont retirées par la recette générale `pkg-autoremove`.
 steps:
   - pkg-remove:
       packages: [git]
 
   - pkg-install:
       packages: [git-lite]
-
-  - command:
-      run: "pkg autoremove -y"
-      unless: "pkg autoremove -n | grep -q 'Nothing to do'"
-      if_set: "{{ autoremove }}"
-      show_output: true
