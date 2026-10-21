@@ -6,6 +6,7 @@ description: |
   → masque l'OS et SURTOUT la date de patch (la plus sensible : elle révèle
   les CVE applicables). Le numéro OpenSSH lui-même n'est pas masquable par
   config (compilé). Compression laissée par défaut (utile).
+systems: [freebsd, linux]
 steps:
   - sshd-config-set:
       key: VersionAddendum

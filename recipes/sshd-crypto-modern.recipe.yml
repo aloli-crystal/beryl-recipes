@@ -8,10 +8,13 @@ description: |
   comme adi). Pas de diffie-hellman-group-exchange-sha256 (le fallback GEX
   peut retomber sur un module 2048 bits pour de très vieux clients). Les
   aes*-ctr restent (légitimes couplés aux MACs ETM).
+systems: [freebsd, linux]
 steps:
   - sshd-config-set:
       key: KexAlgorithms
-      value: mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group18-sha512,diffie-hellman-group16-sha512
+      # Liste de référence, réduite à ce que cet OpenSSH connaît (`ssh -Q kex`, même version que sshd) :
+      # mlkem768x25519 n'existe qu'à partir d'OpenSSH 9.9 (absent de SUSE 15).
+      value_from_command: "for k in mlkem768x25519-sha256 sntrup761x25519-sha512@openssh.com curve25519-sha256 curve25519-sha256@libssh.org diffie-hellman-group18-sha512 diffie-hellman-group16-sha512; do ssh -Q kex | grep -qx \"$k\" && echo \"$k\"; done | paste -sd, -"
   - sshd-config-set:
       key: Ciphers
       value: aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr

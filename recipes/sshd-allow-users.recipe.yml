@@ -1,0 +1,23 @@
+recipe: sshd-allow-users
+description: |
+  Réserve l'accès SSH à une liste de comptes (`AllowUsers`). Tout autre
+  compte, même avec une clé valide, est refusé par sshd.
+
+  GARDE-FOU : refus si le compte par lequel beryl se connecte (`{{ connect_user }}`)
+  n'est pas dans la liste — beryl ne ferme jamais sa propre porte. Passez
+  d'abord `user: <compte>` dans le host.yml, vérifiez, puis appliquez.
+
+  `users` : noms séparés par des espaces, ex. `deploy` ou `deploy admin`.
+systems: [freebsd, linux]
+parameters:
+  users:
+    type: string
+    default: ""
+    description: Comptes autorisés en SSH, séparés par des espaces (obligatoire).
+steps:
+  - command:
+      run: "echo 'sshd-allow-users : {{ connect_user }} (compte de beryl) absent de « {{ users }} » — refus' >&2; exit 1"
+      unless: "case ' {{ users }} ' in *' {{ connect_user }} '*) exit 0 ;; *) exit 1 ;; esac"
+  - sshd-config-set:
+      key: AllowUsers
+      value: "{{ users }}"

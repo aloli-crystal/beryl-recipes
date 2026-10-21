@@ -3,6 +3,7 @@ description: Ne présenter qu'une seule clé d'hôte SSH (ed25519) — pas de rs
 # Dès qu'une directive HostKey est posée, sshd n'offre QUE celle(s)-ci
 # (les fichiers rsa/ecdsa peuvent rester sur disque, ignorés). HostKeyAlgorithms
 # verrouille en plus l'algo annoncé. Résultat ssh-audit : 1 seule host key.
+systems: [freebsd, linux]
 steps:
   - sshd-config-set:
       key: HostKey

@@ -8,6 +8,7 @@ description: |
   même règle que le bootstrap) : `/home` chiffré (profil `standard` du pool
   boot) → root PAR CLÉ (`prohibit-password`), porte de secours tant que les
   datasets chiffrés ne sont pas déverrouillés. Requiert beryl >= 0.6.58.
+systems: [freebsd, linux]
 parameters:
   permit_root_login:
     type: string

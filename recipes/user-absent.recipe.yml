@@ -1,0 +1,34 @@
+recipe: user-absent
+description: |
+  Supprime un compte et son dossier personnel (`userdel -r` sous Linux,
+  `pw userdel -r` sous FreeBSD). Absent → rien à faire.
+
+  Plusieurs comptes : liste en argument, la recette est jouée une fois par
+  nom (`- user-absent: { name: [alice, bob] }`).
+
+  GARDE-FOU : refus pour root, pour le compte par lequel beryl se connecte
+  (`{{ connect_user }}`), et pour tout UID < 1000 (comptes système).
+  Les processus du compte sont arrêtés d'abord (`pkill -u`).
+systems: [freebsd, linux]
+parameters:
+  name:
+    type: string
+    default: ""
+    description: Compte à supprimer (obligatoire).
+steps:
+  - command:
+      run: "echo 'user-absent : compte « {{ name }} » protégé (vide, root, compte de beryl ou UID < 1000) — refus' >&2; exit 1"
+      unless: "test -n '{{ name }}' -a '{{ name }}' != root -a '{{ name }}' != '{{ connect_user }}' && { uid=$(id -u '{{ name }}' 2>/dev/null) || exit 0; test \"$uid\" -ge 1000; }"
+  - command:
+      run: |
+        pkill -u '{{ name }}' 2>/dev/null || true
+        sleep 1
+        if command -v pw >/dev/null 2>&1; then
+          pw userdel -n '{{ name }}' -r
+        else
+          userdel -r '{{ name }}' 2>&1 | grep -v 'mail spool' >&2 || true
+          ! id -u '{{ name }}' >/dev/null 2>&1
+        fi
+        echo "{{ name }} : compte supprimé"
+      unless: "! id -u '{{ name }}' >/dev/null 2>&1"
+      show_output: true

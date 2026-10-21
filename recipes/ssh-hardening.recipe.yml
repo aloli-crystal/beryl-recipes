@@ -11,6 +11,7 @@ description: |
   (`sshd -t`) et recharge sshd elle-même à chaque changement, et skippe si
   rien ne change → la méta est idempotente (2ᵉ apply = 0 applied).
   Backward-compatible : `requires: [ssh-hardening]` continue de tout poser.
+systems: [freebsd, linux]
 requires:
   - root-password-lock
   - sshd-auth-keys-only

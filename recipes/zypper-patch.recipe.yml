@@ -1,0 +1,28 @@
+recipe: zypper-patch
+description: |
+  Correctifs de SÉCURITÉ d'un serveur SUSE (`zypper patch --category
+  security`) : les paquets restent à la version de la distribution, les
+  failles y sont corrigées par l'éditeur (ex. OpenSSH 9.6p1 corrigé, sans
+  passer en 10.x hors dépôts officiels).
+
+  Rien à faire si aucun correctif de sécurité n'est en attente. Un correctif
+  qui exige un redémarrage (noyau, glibc…) est installé, et le compte rendu
+  le signale : le redémarrage reste une décision de l'opérateur.
+systems: [linux]
+steps:
+  - command:
+      run: |
+        rc=0
+        zypper --non-interactive patch --category security --auto-agree-with-licenses --no-recommends >/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
+        if [ "$rc" -eq 103 ]; then
+          rc=0
+          zypper --non-interactive patch --category security --auto-agree-with-licenses --no-recommends >>/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
+        fi
+        tail -n 5 /tmp/beryl-zypper-patch.log
+        case "$rc" in
+          0) ;;
+          102) echo "correctifs installés — REDÉMARRAGE NÉCESSAIRE" ;;
+          *) exit "$rc" ;;
+        esac
+      unless: "! zypper --non-interactive list-patches --category security 2>/dev/null | grep -q '| needed'"
+      show_output: true

@@ -14,6 +14,38 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.45 (21 octobre 2026)
+
+Prise en charge de Linux (systemd, SUSE) par beryl 0.6.72 : une recette
+déclare les systèmes qu'elle gère (`systems:`, FreeBSD seul par défaut).
+
+=== Ajouté
+
+* `sudo-user` (Linux) — compte d'administration à clé SSH seule, sudo sans
+  mot de passe par `/etc/sudoers.d/<user>` validé par `visudo -cf` (invalide
+  → retiré).
+* `sshd-allow-users` — `AllowUsers` ; refus si le compte de beryl
+  (`{{ connect_user }}`) n'est pas dans la liste.
+* `user-absent` — supprime un compte et son dossier ; refus pour root, le
+  compte de beryl et les UID < 1000.
+* `zypper-patch` (Linux) — correctifs de sécurité SUSE ; signale un
+  redémarrage nécessaire sans le faire.
+
+=== Modifié
+
+* `ssh-hardening` et ses briques (`root-password-lock`, `sshd-auth-keys-only`,
+  `sshd-crypto-modern`, `sshd-banner-neutral`, `sshd-host-key-ed25519`) —
+  `systems: [freebsd, linux]`.
+* `sshd-crypto-modern` — `KexAlgorithms` réduit à ce que l'OpenSSH du serveur
+  connaît (`ssh -Q kex`) : `mlkem768x25519-sha256` n'existe qu'à partir
+  d'OpenSSH 9.9 ; même résultat qu'avant sur FreeBSD 15.
+* `root-password-lock` — portable : `pw` sur FreeBSD, `usermod -p '*'` sous
+  Linux (champ du mot de passe lu par `getent shadow`).
+* `ipsec-site-to-site` — étape de nettoyage d'une route source essayée puis
+  abandonnée (`route … -ifa` ne change pas l'adresse source quand elle est
+  portée par une loopback) ; le rebond passe par `nc -s` (`proxy_command:`
+  d'un host.yml, beryl 0.6.72).
+
 == 0.0.44 (21 octobre 2026)
 
 === Ajouté

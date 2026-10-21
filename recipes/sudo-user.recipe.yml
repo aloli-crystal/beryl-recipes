@@ -1,0 +1,47 @@
+recipe: sudo-user
+description: |
+  Compte d'administration sous Linux (sur FreeBSD, c'est `freebsd.users` du
+  host.yml qui crée les comptes) : utilisateur à clé SSH seule, sudo sans
+  mot de passe par un fichier `/etc/sudoers.d/<user>` (0440, validé par
+  `visudo -cf` ; invalide → retiré, sudo reste intact).
+
+  `key` = clé PUBLIQUE autorisée (une ligne `ssh-ed25519 AAAA… commentaire`).
+  Le mot de passe du compte n'est jamais posé : connexion par clé seulement.
+
+  Ordre conseillé sur une VM reçue d'un tiers : appliquer cette recette en se
+  connectant avec le compte fourni, vérifier `ssh <user>@hôte sudo -n true`,
+  passer `user: <user>` dans le host.yml, PUIS restreindre l'accès
+  (`sshd-allow-users`) et retirer les autres comptes (`user-absent`).
+systems: [linux]
+parameters:
+  user:
+    type: string
+    default: deploy
+  key:
+    type: string
+    default: ""
+    description: Clé publique SSH du compte (obligatoire).
+  shell:
+    type: string
+    default: /bin/bash
+steps:
+  - command:
+      run: "echo 'sudo-user : key (clé publique) obligatoire' >&2; exit 1"
+      unless: "test -n '{{ key }}'"
+  - user-create:
+      name: "{{ user }}"
+      shell: "{{ shell }}"
+      comment: "Administration (beryl)"
+  - user-update-keys:
+      user: "{{ user }}"
+      keys: ["{{ key }}"]
+  - file-write:
+      path: "/etc/sudoers.d/{{ user }}"
+      mode: "0440"
+      owner: root:root
+      content: |
+        # Géré par beryl (recette sudo-user). Édition manuelle écrasée.
+        {{ user }} ALL=(ALL) NOPASSWD: ALL
+  - command:
+      run: "rm -f /etc/sudoers.d/{{ user }}; echo 'sudo-user : /etc/sudoers.d/{{ user }} refusé par visudo, retiré' >&2; exit 1"
+      unless: "visudo -cf /etc/sudoers.d/{{ user }} >/dev/null"

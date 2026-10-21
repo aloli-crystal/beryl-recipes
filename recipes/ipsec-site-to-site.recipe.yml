@@ -8,9 +8,12 @@ description: |
     IKE (UDP 500/4500)   : {{ public_ip }}  ⇄  remote_addrs (IP publique d'en face)
     Phase 2 (local_ts)   : local_ts_ip/32  ⇄  remote_ts (hôte(s) d'en face)
 
-  Les applications qui doivent passer par le tunnel écoutent sur / se lient à
-  `local_ts_ip` (ex. `ssh -b 10.255.255.1 …`). sshd écoute déjà sur toutes les
-  adresses : rien à changer pour un SSH entrant depuis `remote_ts`.
+  Les connexions du serveur vers l'autre côté doivent partir de `local_ts_ip`
+  (`ssh -b`, `nc -s`) : le noyau ne la choisit pas seul, l'adresse étant sur
+  une loopback. Rebond depuis un poste : `ProxyCommand ssh <ce serveur> nc -s
+  <local_ts_ip> %h %p` (champ `proxy_command:` d'un host.yml beryl). sshd
+  écoute déjà sur toutes les adresses : rien à changer pour un SSH entrant
+  depuis `remote_ts`.
 
   « PAR LE TUNNEL SEULEMENT » : la politique est installée dès le démarrage
   (`start_action = trap`) au niveau `require` dans les DEUX sens. Le noyau
@@ -95,6 +98,18 @@ steps:
         ifconfig {{ loopback_iface }} >/dev/null 2>&1 || ifconfig {{ loopback_iface }} create
         ifconfig {{ loopback_iface }} inet {{ local_ts_ip }}/32 alias
       unless: "ifconfig {{ loopback_iface }} 2>/dev/null | grep -q 'inet {{ local_ts_ip }} '"
+
+  # NETTOYAGE (essai du 21 oct. 2026, à retirer une fois appliqué partout) :
+  # une route vers remote_ts avec `-ifa local_ts_ip` ne change PAS l'adresse
+  # source quand celle-ci est portée par une loopback — on la retire, avec
+  # ses lignes rc.conf. Le rebond passe par `nc -s local_ts_ip` (proxy_command).
+  - command:
+      run: |
+        route -n delete -net {{ remote_ts }} >/dev/null 2>&1 || true
+        sysrc -x route_ipsec_{{ name }} >/dev/null 2>&1 || true
+        left=$(sysrc -n static_routes 2>/dev/null | tr ' ' '\n' | grep -vx ipsec_{{ name }} | grep -v '^$' | paste -sd' ' -)
+        if [ -n "${left}" ]; then sysrc static_routes="${left}" >/dev/null; else sysrc -x static_routes >/dev/null 2>&1 || true; fi
+      unless: "! sysrc -n route_ipsec_{{ name }} >/dev/null 2>&1 && ! sysrc -n static_routes 2>/dev/null | tr ' ' '\\n' | grep -qx ipsec_{{ name }}"
 
   - secret-file:
       path: "/usr/local/etc/swanctl/conf.d/{{ name }}.conf"
