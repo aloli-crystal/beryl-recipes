@@ -13,10 +13,10 @@ steps:
   - command:
       run: |
         rc=0
-        zypper --non-interactive patch --category security --auto-agree-with-licenses --no-recommends >/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
+        LC_ALL=C zypper --non-interactive patch --category security --with-interactive --auto-agree-with-licenses --no-recommends >/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
         if [ "$rc" -eq 103 ]; then
           rc=0
-          zypper --non-interactive patch --category security --auto-agree-with-licenses --no-recommends >>/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
+          LC_ALL=C zypper --non-interactive patch --category security --with-interactive --auto-agree-with-licenses --no-recommends >>/tmp/beryl-zypper-patch.log 2>&1 || rc=$?
         fi
         tail -n 5 /tmp/beryl-zypper-patch.log
         case "$rc" in
@@ -24,5 +24,5 @@ steps:
           102) echo "correctifs installés — REDÉMARRAGE NÉCESSAIRE" ;;
           *) exit "$rc" ;;
         esac
-      unless: "! zypper --non-interactive list-patches --category security 2>/dev/null | grep -q '| needed'"
+      unless: "! LC_ALL=C zypper --non-interactive list-patches --category security 2>/dev/null | grep -q '| needed'"
       show_output: true

@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.46 (21 octobre 2026)
+
+=== Modifié
+
+* `zypper-patch` — `--with-interactive` : le correctif du noyau (« reboot »)
+  était sauté par le mode non interactif, et la recette se relançait à
+  chaque apply ; il est installé, le redémarrage reste à l'opérateur.
+  `LC_ALL=C` : la garde lit toujours `needed`, quelle que soit la langue de
+  la session.
+
 == 0.0.45 (21 octobre 2026)
 
 Prise en charge de Linux (systemd, SUSE) par beryl 0.6.72 : une recette
