@@ -1,26 +1,38 @@
 recipe: pkg-autoremove
 description: |
-  Retire les paquets ORPHELINS (`pkg autoremove`) en FIN d'apply, après
-  toutes les autres recettes : dépendances qu'un paquet retiré ou remplacé
-  laisse derrière lui (ex. python3xx, perl5, p5-* du `git` complet remplacé
-  par `git-lite`).
+  Retire les paquets ORPHELINS en FIN d'apply, après toutes les autres
+  recettes : dépendances qu'un paquet retiré ou remplacé laisse derrière lui
+  (ex. python3xx, perl5, p5-* du `git` complet remplacé par `git-lite` ;
+  llvm19 d'un PostgreSQL remplacé par sa variante sans JIT).
 
   POURQUOI : un paquet installé que plus rien n'utilise reste une surface
   d'attaque, et ses avis vuxml s'accumulent dans le rapport quotidien de
   sécurité. Recette générale, à mettre dans `_default.yml` : aucune recette
   n'a à gérer ses propres restes.
 
-  `pkg autoremove` ne retire QUE les paquets installés comme dépendance
-  (`pkg query %a` = 1) que plus rien ne requiert ; un paquet installé
-  explicitement (par une recette ou à la main) n'est jamais touché.
-  L'essai à blanc dit seulement s'il y a des orphelins ; leur liste :
-  `pkg autoremove -n` sur le serveur.
+  JAMAIS un paquet du système de base (`FreeBSD-*`, pkgbase) : beaucoup y
+  sont marqués « installés comme dépendance » des ensembles du système, et
+  `pkg autoremove` en retirait (FreeBSD-clibs-lib32 sur loulou, 23 oct.
+  2026). Le système de base relève de `beryl os-upgrade`.
+
+  D'où des passes successives sur les FEUILLES : paquets installés comme
+  dépendance (`%a`), que plus rien ne requiert (`%#r` = 0), hors
+  `FreeBSD-*`. Un retrait ne peut alors rien entraîner d'autre (pas de
+  dépendance inverse) ; chaque passe libère la suivante (un orphelin de
+  l'orphelin). Un paquet installé explicitement (par une recette ou à la
+  main) n'est jamais touché. L'essai à blanc dit seulement s'il y a des
+  orphelins ; leur liste : `pkg query -e '%a == 1 && %#r == 0' %n` sur le
+  serveur.
 
   Étape `deferred` : jouée une seule fois, après toutes les recettes de
   l'apply (donc après chaque `pkg-remove`), et aussi après un échec.
 steps:
   - command:
-      run: "pkg autoremove -y"
-      unless: "pkg autoremove -n | grep -q 'Nothing to do'"
+      run: >-
+        i=0;
+        while leaves=$(pkg query -e '%a == 1 && %#r == 0' %n | grep -v '^FreeBSD-');
+        [ -n "$leaves" ] && [ $i -lt 30 ]; do
+        pkg delete -y $leaves || exit 1; i=$((i + 1)); done
+      unless: "[ -z \"$(pkg query -e '%a == 1 && %#r == 0' %n | grep -v '^FreeBSD-')\" ]"
       show_output: true
       deferred: true

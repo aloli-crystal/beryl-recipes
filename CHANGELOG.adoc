@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.48 (23 octobre 2026)
+
+=== Modifié
+
+* `pkg-autoremove` — ne retire JAMAIS un paquet du système de base
+  (`FreeBSD-*`) : `pkg autoremove` avait retiré FreeBSD-clibs-lib32 sur
+  loulou. Passes successives sur les feuilles (installés comme dépendance,
+  plus rien ne les requiert, hors `FreeBSD-*`) : un retrait n'entraîne rien
+  d'autre. Le système de base relève de `beryl os-upgrade` (beryl >= 0.6.80).
+
 == 0.0.47 (23 octobre 2026)
 
 === Modifié
