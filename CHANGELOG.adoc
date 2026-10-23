@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.47 (23 octobre 2026)
+
+=== Modifié
+
+* `postgresql` — paramètre `server_package` : serveur MAISON de la même
+  majeure (ex. sans JIT), imposé par une recette privée à son nom ; le
+  client reste l'officiel. Bascule depuis le serveur officiel : paquet
+  maison téléchargé d'abord, PostgreSQL arrêté, officiel retiré, maison
+  installé, PostgreSQL relancé (cluster gardé) ; refusée si un paquet
+  dépend du serveur officiel. Requiert beryl >= 0.6.77.
+
 == 0.0.46 (21 octobre 2026)
 
 === Modifié

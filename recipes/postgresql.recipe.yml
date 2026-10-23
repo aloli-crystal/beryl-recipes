@@ -16,6 +16,19 @@ description: |
   ATTENTION : `--data-checksums` n'agit qu'à l'`initdb` (cluster NEUF). Sur
   un cluster DÉJÀ initialisé sans checksums, activez-les hors-ligne avec
   `pg_checksums --enable -D <datadir>` (serveur arrêté).
+
+  Serveur MAISON (options différentes, ex. sans JIT) : jamais sous le nom
+  du paquet officiel. Une recette PRIVÉE au nom exact du paquet l'impose
+  par `requires:` en forme map, avec sa majeure :
+      requires:
+        - postgresql: { server_package: postgresql18-server-maison, version: "18" }
+  Le client reste l'officiel. Si le serveur OFFICIEL de la même majeure est
+  installé, il est remplacé : paquet maison TÉLÉCHARGÉ d'abord (introuvable
+  → échec sans rien retirer), PostgreSQL arrêté s'il tournait, officiel
+  retiré, maison installé, PostgreSQL relancé — coupure de quelques
+  secondes ; le cluster (`/var/db/postgres/data<NN>`) n'est pas touché. Si
+  un paquet dépend du serveur officiel (extension compilée contre lui),
+  la bascule est REFUSÉE et ces paquets sont nommés.
 parameters:
   version:
     type: string
@@ -31,11 +44,31 @@ parameters:
     description: >-
       Flags passés à `initdb` via `postgresql_initdb_flags`. Défaut =
       défaut FreeBSD + `--data-checksums` (détection de corruption de page).
+  server_package:
+    type: string
+    default: ""
+    description: "Serveur maison (nom exact, même majeure que `version`) ; vide = l'officiel `postgresql<NN>-server`. Imposé par la recette privée à son nom."
 steps:
+  # Bascule officiel → maison (même majeure) ; sautée sans `server_package`,
+  # ou si le serveur officiel n'est pas installé (premier apply : installé
+  # directement par pkg-versioned ci-dessous).
+  - command:
+      if_set: "{{ server_package }}"
+      run: >-
+        deps=$(pkg query %rn 'postgresql{{ version }}-server');
+        if [ -n "$deps" ]; then echo "bascule refusée : dépendent de postgresql{{ version }}-server : $deps" >&2; exit 1; fi;
+        pkg fetch -qy '{{ server_package }}' &&
+        { up=0; service postgresql onestatus >/dev/null 2>&1 && up=1;
+        { [ $up = 0 ] || service postgresql stop; } &&
+        pkg delete -y 'postgresql{{ version }}-server' && pkg install -y '{{ server_package }}' &&
+        { [ $up = 0 ] || service postgresql start; }; }
+      unless: "! pkg info -e 'postgresql{{ version }}-server' || [ '{{ server_package }}' = 'postgresql{{ version }}-server' ]"
+      show_output: true
   - pkg-versioned:
       base: postgresql
       version: "{{ version }}"
       only: "{{ only }}"
+      server_package: "{{ server_package }}"
   # Doit précéder `postgresql-initdb` : `service postgresql oneinitdb` lit
   # `postgresql_initdb_flags` dans rc.conf. Sur un client-only (initdb
   # skippé), la variable reste simplement inerte.
