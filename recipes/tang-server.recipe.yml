@@ -1,0 +1,89 @@
+recipe: tang-server
+description: |
+  Serveur Tang (`security/tang`) : fournit, sur le réseau privé, la moitié de
+  secret qui permet à un serveur chiffré (pool ZFS, `encryption.mode: tang`)
+  de reconstruire sa clé au démarrage, sans opérateur (`crystal-clevis-zfs`).
+  Un disque volé hors de ce réseau reste illisible : la clé ne se reconstruit
+  qu'en joignant un Tang.
+
+  Où : sur des serveurs DISTINCTS de ceux qu'ils déverrouillent (un Tang sur
+  le serveur chiffré lui-même ne protège de rien), de préférence un par
+  datacentre (les bastions), avec un seuil côté client (`threshold`, cf.
+  `beryl tang-enroll`) : la perte d'un Tang ne bloque aucun démarrage.
+
+  Réseau : `tangd` écoute sur TOUTES les interfaces (il n'a pas d'option
+  d'adresse) et tourne en root (script rc.d du port). Le port n'est donc
+  ouvert QU'AU réseau privé `allow_from` (pf) ; un Tang joignable depuis
+  Internet annulerait la protection d'un disque volé. pf reste par ailleurs
+  « tout permis » : seul le port de Tang est filtré, SSH et le reste ne
+  bougent pas. pf est chargé et activé s'il ne l'était pas.
+
+  Clés : créées UNE fois par `tangd-keygen` dans `/var/db/tang` (0700, posé
+  par le port) si le dossier n'a encore aucune clé, jamais régénérées. Elles
+  ne quittent pas le serveur : un Tang réinstallé a de nouvelles clés, et les
+  serveurs qui l'utilisaient doivent être ré-enrôlés (`beryl tang-enroll`) —
+  le seuil multi-Tang et le déverrouillage manuel (`beryl unlock`) couvrent
+  la transition. Rotation : `tangd-rotate-keys`, à la main, hors recette.
+
+  Supervision (inerte sans monit) : `tangd` relancé s'il tombe, alerte s'il ne
+  revient pas.
+
+  ⚠️ Pas sur un serveur qui possède `/etc/pf.conf` en entier par une autre
+  recette (`firewall-pf`, `sshd-vrack-only`) : elle écraserait le bloc géré
+  par `pf-rule` au prochain apply.
+requires:
+  - monit
+parameters:
+  allow_from:
+    type: string
+    default: 192.168.42.0/24
+    description: Réseau (IPv4, CIDR) autorisé à joindre Tang — le vRack. Tout le reste (IPv6 compris) est refusé sur ce port.
+  port:
+    type: string
+    default: "8888"
+    description: Port TCP de tangd (`tangd_port`).
+steps:
+  - pkg-install:
+      packages: [tang]
+  # Clés du serveur (signature + échange), une seule fois.
+  - command:
+      run: "/usr/local/libexec/tangd-keygen /var/db/tang"
+      unless: "ls /var/db/tang/*.jwk >/dev/null 2>&1"
+  - sysrc-set:
+      key: tangd_port
+      value: "{{ port }}"
+  # pf : module chargé AVANT de poser les règles (`pfctl -f` l'exige), puis
+  # activé au démarrage. Ordre `quick` : la boucle locale (sonde monit) et le
+  # réseau privé passent, le reste est refusé — sur CE port seulement.
+  - command:
+      run: "kldload -n pf"
+      unless: "kldstat -q -m pf"
+  - pf-rule:
+      rule: "pass in quick on lo0 proto tcp to port {{ port }}"
+  - pf-rule:
+      rule: "pass in quick inet proto tcp from {{ allow_from }} to port {{ port }}"
+  - pf-rule:
+      rule: "block in quick proto tcp to port {{ port }}"
+  - service-enable:
+      name: pf
+      start: true
+  - service-enable:
+      name: tangd
+      start: true
+  - service-restart:
+      name: tangd
+      if_changed: true
+  - file-write:
+      path: /usr/local/etc/monit.d/tangd.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette tang-server).
+        check process tangd matching "/usr/local/libexec/tangd"
+          start program = "/usr/sbin/service tangd start"
+          stop program  = "/usr/sbin/service tangd stop"
+          if failed host 127.0.0.1 port {{ port }} protocol http request "/adv" for 3 cycles then restart
+          if 3 restarts within 5 cycles then unmonitor
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

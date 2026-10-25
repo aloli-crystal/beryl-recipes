@@ -14,6 +14,20 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.49 (25 octobre 2026)
+
+=== Ajouté
+
+* `tang-server` — serveur Tang (`security/tang`) pour le déverrouillage
+  automatique des pools ZFS chiffrés (`encryption.mode: tang`, `beryl
+  tang-enroll`). Clés créées une fois (`tangd-keygen`, `/var/db/tang`),
+  jamais régénérées. `tangd` écoute partout : pf chargé et activé, le port
+  (8888) ouvert à la seule boucle locale (sonde monit) et au réseau privé
+  `allow_from` (vRack, défaut `192.168.42.0/24`), refusé ailleurs (IPv6
+  compris) ; le reste de pf reste « tout permis ». Sonde monit (`/adv`).
+  À poser sur des serveurs distincts de ceux qu'ils déverrouillent (les
+  bastions, un par datacentre), avec un seuil côté client.
+
 == 0.0.48 (23 octobre 2026)
 
 === Modifié
