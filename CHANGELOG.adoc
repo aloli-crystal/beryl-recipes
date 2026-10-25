@@ -14,6 +14,13 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.52 (25 octobre 2026)
+
+=== Modifié
+
+* `tang-client` — paquet `clevis-zfs` (ex `crystal-clevis-zfs`), script rc.d
+  `clevis_zfs` ; `tang-server` : texte aligné.
+
 == 0.0.51 (25 octobre 2026)
 
 === Ajouté

@@ -2,7 +2,7 @@ recipe: tang-server
 description: |
   Serveur Tang (`security/tang`) : fournit, sur le réseau privé, la moitié de
   secret qui permet à un serveur chiffré (pool ZFS, `encryption.mode: tang`)
-  de reconstruire sa clé au démarrage, sans opérateur (`crystal-clevis-zfs`).
+  de reconstruire sa clé au démarrage, sans opérateur (`clevis-zfs`).
   Un disque volé hors de ce réseau reste illisible : la clé ne se reconstruit
   qu'en joignant un Tang.
 

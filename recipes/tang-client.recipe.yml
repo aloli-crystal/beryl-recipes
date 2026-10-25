@@ -1,13 +1,13 @@
 recipe: tang-client
 description: |
-  Client Tang (`security/crystal-clevis-zfs`) : installe le binaire et le
-  script rc.d `crystal_clevis_zfs` qui, au démarrage, reconstruit la clé des
+  Client Tang (`security/clevis-zfs`) : installe le binaire et le
+  script rc.d `clevis_zfs` qui, au démarrage, reconstruit la clé des
   pools chiffrés en `encryption.mode: tang` en joignant les serveurs Tang
   (recette `tang-server`), puis les monte — sans opérateur.
 
   Cette recette ne fait QU'INSTALLER : l'enrôlement (clé du pool liée aux
-  Tang, seuil K sur N) et l'activation au démarrage (`crystal_clevis_zfs_enable`,
-  `crystal_clevis_zfs_datasets` dans `/etc/rc.conf`) sont l'affaire de
+  Tang, seuil K sur N) et l'activation au démarrage (`clevis_zfs_enable`,
+  `clevis_zfs_datasets` dans `/etc/rc.conf`) sont l'affaire de
   `beryl tang-enroll <host> --apply`, une fois le pool créé par bootstrap.
 
   Ordre de mise en route d'un serveur chiffré :
@@ -25,4 +25,4 @@ description: |
   poste) prend le relais.
 steps:
   - pkg-install:
-      packages: [crystal-clevis-zfs]
+      packages: [clevis-zfs]
