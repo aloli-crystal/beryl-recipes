@@ -14,6 +14,14 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.51 (25 octobre 2026)
+
+=== Ajouté
+
+* `tang-client` — installe le client Tang (`security/crystal-clevis-zfs`,
+  binaire et script rc.d `crystal_clevis_zfs`). L'enrôlement et l'activation
+  au démarrage restent l'affaire de `beryl tang-enroll <host> --apply`.
+
 == 0.0.50 (25 octobre 2026)
 
 === Modifié
