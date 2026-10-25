@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.50 (25 octobre 2026)
+
+=== Modifié
+
+* `vrack-interface` — `requires_vrack: true` : sautée sur un host sans IP
+  vRack au lieu d'échouer ; peut donc être déclarée une fois pour tout un
+  domaine (`_defaults.yml`). Un host joint par le vRack (caché) change d'IP
+  par la rotation de `beryl vrack`, pas par cette recette.
+
 == 0.0.49 (25 octobre 2026)
 
 === Ajouté

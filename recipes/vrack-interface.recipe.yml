@@ -13,8 +13,12 @@ description: |
 
   `ip` vaut `{{ vrack_ip }}` par défaut → l'IP privée est lue dans le bloc
   `vrack: { ip: … }` du host (SOURCE UNIQUE, pas de doublon). Il suffit donc
-  de lister la recette nue ; elle échoue explicitement si le host n'a pas de
-  bloc vRack. Surchargeable si besoin :
+  de lister la recette nue, une fois pour tout un domaine (`_defaults.yml`) :
+  `requires_vrack` la fait SAUTER sur un host sans IP vRack (ex. GAME-1).
+  Changer `vrack.ip` d'un host joint PAR le vRack (caché, via un bastion) ne
+  passe pas par cette recette : beryl ne le joindrait plus ; utilisez la
+  rotation de `beryl vrack` (liste `[ancienne, nouvelle]`). Surchargeable si
+  besoin :
 
     # cas courant : l'IP vient du bloc `vrack:` du host
     apply_recipes:
@@ -28,6 +32,7 @@ description: |
 
   Pré-requis : le host doit être rattaché au vRack côté OVH (l'interface
   doit être `status: active`), sinon l'IP est posée mais sans connectivité.
+requires_vrack: true
 parameters:
   iface:
     type: string
