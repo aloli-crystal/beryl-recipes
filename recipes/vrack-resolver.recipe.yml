@@ -1,0 +1,57 @@
+recipe: vrack-resolver
+description: |
+  Résolution des noms INTERNES du vRack (`<court>.{{ vrack_zone }}`, ex.
+  `pkg.vrack.internal`) sur un host : le résolveur du système de base
+  (`local_unbound`) envoie cette zone, et son inverse, aux bastions du vRack
+  (recette `unbound-vrack`, `stub-addr` = l'IP vRack de chaque bastion,
+  calculée depuis les fiches) ; tout le reste continue vers les résolveurs
+  d'avant (ceux de l'hébergeur, gardés en relais par `local_unbound`).
+
+  À déclarer une fois pour tout un domaine (`_defaults.yml`) : sautée sur un
+  host sans IP vRack. Les bastions l'ont aussi (leur propre résolveur
+  interroge les trois serveurs de la zone).
+
+  ⚠️ Premier passage : `local_unbound` est activé et se configure
+  (`local-unbound-setup`) : `/etc/resolv.conf` passe à `127.0.0.1`, l'ancien
+  est sauvegardé dans `/var/backups`. Essayer d'abord sur UN host.
+
+  DNSSEC : la zone interne n'existe pas dans la racine signée → déclarée
+  `domain-insecure` (sinon réponses rejetées) ; l'inverse est une zone privée,
+  déjà non validée par `local_unbound` (`insecure-lan-zones`).
+requires_vrack: true
+requires:
+  - vrack-interface
+steps:
+  # Le dossier doit exister AVANT la 1ʳᵉ configuration : `local-unbound-setup`
+  # n'inclut `conf.d/*.conf` que s'il le trouve.
+  - directory:
+      path: /var/unbound/conf.d
+      mode: "0755"
+  - file-write:
+      path: /var/unbound/conf.d/vrack.conf
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette vrack-resolver) : zone interne du vRack
+        # → ses bastions.
+        server:
+            domain-insecure: "{{ vrack_zone }}"
+            private-domain: "{{ vrack_zone }}"
+
+        stub-zone:
+            name: "{{ vrack_zone }}"
+        {{ vrack_stub_addrs }}
+
+        stub-zone:
+            name: "{{ vrack_reverse_zone }}"
+        {{ vrack_stub_addrs }}
+  # Configuration générée avant l'existence de conf.d/ (local_unbound déjà en
+  # place) : la régénérer pour qu'elle l'inclue.
+  - command:
+      run: "service local_unbound setup"
+      unless: "! test -f /var/unbound/unbound.conf || grep -q 'conf.d/\\*.conf' /var/unbound/unbound.conf"
+  - service-enable:
+      name: local_unbound
+      start: true
+  - service-restart:
+      name: local_unbound
+      if_changed: true

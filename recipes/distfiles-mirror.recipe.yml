@@ -17,9 +17,10 @@ description: |
   Le builder peut s'en servir en repli automatique (`MASTER_SITE_BACKUP`
   dans le make.conf de poudriere, à poser côté builder).
 
-  Paramètre OBLIGATOIRE `source` : IP (vRack) du builder.
+  Paramètre OBLIGATOIRE `source` : nom (DNS interne du vRack, recette
+  `vrack-resolver`) ou IP vRack du builder.
     apply_recipes:
-      - distfiles-mirror: { source: 192.168.42.1 }
+      - distfiles-mirror: { source: pkg.vrack.internal }
 requires:
   - mirror-http
 parameters:
@@ -29,7 +30,7 @@ parameters:
     description: Racine des miroirs (celle de `mirror-http`).
   source:
     type: string
-    description: Adresse (vRack) du builder qui expose le module rsync `distfiles`.
+    description: Nom ou adresse (vRack) du builder qui expose le module rsync `distfiles`.
 steps:
   - pkg-install:
       packages: [rsync]

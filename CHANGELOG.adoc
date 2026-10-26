@@ -14,6 +14,24 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.54 (26 octobre 2026)
+
+=== Ajouté
+
+* `vrack-resolver` — résolution des noms internes du vRack
+  (`<court>.vrack.internal`) : `local_unbound` du système de base envoie la
+  zone et son inverse aux bastions (calculés depuis les fiches), le reste
+  aux résolveurs d'avant. Déclarable pour tout un domaine (sautée sans vRack).
+
+=== Modifié
+
+* `unbound-vrack` — réécrite : la zone est calculée par beryl dans TOUTES
+  les fiches et écrite par la recette à chaque apply (plus de
+  `beryl vrack-dns --to`) ; n'écoute que l'IP vRack, ne sert que la zone
+  (`local-zone: "." refuse`), plus de relais vers des résolveurs publics.
+* `pkg-mirror`, `distfiles-mirror` — `source` par son nom interne
+  (`pkg.vrack.internal`) dans les exemples.
+
 == 0.0.53 (26 octobre 2026)
 
 === Ajouté

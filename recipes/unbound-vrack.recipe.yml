@@ -1,46 +1,68 @@
 recipe: unbound-vrack
 description: |
-  `unbound` = résolveur DNS PRIVÉ du vRack, sur un bastion z. Écoute
-  UNIQUEMENT sur l'IP vRack (`vrack_ip`) + loopback (jamais public) ; sert la
-  zone `vrack.example.net` (le fichier `vrack.conf` est rempli par
-  `beryl vrack-dns --to <ce z>`) et forwarde le reste vers des résolveurs
-  publics.
+  Serveur de la zone DNS INTERNE du vRack, sur un bastion (`unbound`, port
+  `dns/unbound`) : `<court>.{{ vrack_zone }}` (A) et l'inverse (PTR) de
+  chaque host du même vRack. La zone est calculée par beryl dans TOUTES les
+  fiches (IP vRack de chaque `.host.yml`, `Beryl::VrackZone`) et écrite par
+  cette recette à chaque apply : réappliquer suffit après un ajout ou un
+  changement d'IP (`beryl apply <groupe des bastions>`).
 
-  ⚠️ APRÈS cette recette : `beryl vrack-dns --to <ce z>` pour remplir la zone.
-  (Ré-appliquer la recette remet `vrack.conf` à vide → relancez `vrack-dns`.)
+  Rien d'autre n'est résolu (`local-zone: "." refuse`) : ce n'est pas un
+  résolveur ouvert, seulement la zone. Les hosts l'interrogent par leur
+  résolveur local (recette `vrack-resolver`), les trois bastions en repli.
 
-  ⚠️ Config unbound À VALIDER IN VIVO sur un vrai z (1ère version).
+  Réseau : écoute UNIQUEMENT sur l'IP vRack (`{{ vrack_ip }}`), réponses au
+  seul réseau `allow_from`. La boucle locale reste libre pour le résolveur du
+  système (`local_unbound`, recette `vrack-resolver`) sur ce même bastion.
+
+  Pré-requis : `vrack.subnet` déclaré (zone inverse) ; zone `vrack.zone` du
+  merge, `vrack.internal` par défaut (domaine réservé à l'usage privé).
+requires_vrack: true
+requires:
+  - monit
+  - vrack-interface
 parameters:
-  vrack_ip:
+  allow_from:
     type: string
-    default: ""
-    description: IP vRack de CE z (= son IP `vrack-interface`). Obligatoire.
+    default: 192.168.42.0/24
+    description: Réseau (IPv4, CIDR) autorisé à interroger la zone — le vRack.
 steps:
   - pkg-install:
       packages: [unbound]
-  # Placeholder pour que l'`include` ne casse pas au 1er démarrage.
-  - file-write:
-      path: /usr/local/etc/unbound/vrack.conf
-      mode: "0644"
-      content: |
-        # Zone vRack — remplie par `beryl vrack-dns --to <ce z>`.
   - file-write:
       path: /usr/local/etc/unbound/unbound.conf
       mode: "0644"
       content: |
+        # Géré par beryl (recette unbound-vrack) : zone interne du vRack,
+        # calculée depuis les fiches. Rien d'autre n'est résolu.
         server:
-          interface: 127.0.0.1
-          interface: {{ vrack_ip }}
-          access-control: 127.0.0.0/8 allow
-          access-control: 192.168.42.0/24 allow
-          access-control: 0.0.0.0/0 refuse
-          hide-identity: yes
-          hide-version: yes
-          include: "/usr/local/etc/unbound/vrack.conf"
-        forward-zone:
-          name: "."
-          forward-addr: 9.9.9.9
-          forward-addr: 1.1.1.1
+            interface: {{ vrack_ip }}
+            do-ip6: no
+            access-control: 0.0.0.0/0 refuse
+            access-control: {{ allow_from }} allow
+            hide-identity: yes
+            hide-version: yes
+            local-zone: "." refuse
+            local-zone: "{{ vrack_zone }}." static
+            local-zone: "{{ vrack_reverse_zone }}." static
+        {{ vrack_local_data }}
   - service-enable:
       name: unbound
       start: true
+  - service-restart:
+      name: unbound
+      if_changed: true
+  - file-write:
+      path: /usr/local/etc/monit.d/unbound-vrack.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette unbound-vrack).
+        check process unbound matching "/usr/local/sbin/unbound"
+          start program = "/usr/sbin/service unbound start"
+          stop program  = "/usr/sbin/service unbound stop"
+          if failed host {{ vrack_ip }} port 53 type tcp for 3 cycles then restart
+          if 3 restarts within 5 cycles then unmonitor
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true
