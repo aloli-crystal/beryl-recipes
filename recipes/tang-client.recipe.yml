@@ -15,7 +15,7 @@ description: |
     1. bloc `encryption:` (mode tang, urls, threshold) sur le pool dans la
        fiche du host ;
     2. `beryl bootstrap` : pool chiffré, clé locale sur le poste ;
-    3. `beryl apply` (cette recette) ;
+    3. `beryl sync` (cette recette) ;
     4. `beryl tang-enroll <host> --apply` ;
     5. reboot de contrôle : le pool doit revenir monté seul.
 

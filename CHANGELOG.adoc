@@ -14,6 +14,13 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.57 (26 octobre 2026)
+
+=== Modifié
+
+* Documentation des recettes : `beryl sync` au lieu de `beryl apply`
+  (commande renommée dans beryl 0.6.109 ; `apply` reste un alias).
+
 == 0.0.56 (26 octobre 2026)
 
 === Modifié

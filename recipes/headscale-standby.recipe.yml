@@ -189,7 +189,7 @@ steps:
         echo "                   pour la clé '${HOSTNAME}' du repo headscale-state."
         echo "  2. Repointer le DNS : beryl dns-alias ${HOSTNAME} --name headscale"
         echo "  3. Appliquer la recipe 'headscale-backup' sur ce nœud :"
-        echo "     beryl apply --recipe headscale-backup ${HOSTNAME}"
+        echo "     beryl sync --recipe headscale-backup ${HOSTNAME}"
         echo "     (le cron de backup remplace le cron pull qu'on vient de supprimer)."
         echo "  4. À la reprise de l'ancien primary, lui appliquer 'headscale-standby'."
 

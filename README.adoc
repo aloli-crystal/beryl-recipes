@@ -44,7 +44,7 @@ on the beryl side.
 
 == Overview
 
-beryl orchestrates recipes through the `beryl apply <host>` command.
+beryl orchestrates recipes through the `beryl sync <host>` command.
 Recipes are read from:
 
 . *The host orchestration folder* : `~/.config/beryl/<company>/<domain>/<host>/`
@@ -52,7 +52,7 @@ Recipes are read from:
 . *The main repository* (this one) : `~/.config/beryl/recipes/recipes/`
 
 beryl resolves `requires:` recursively and applies a topological sort.
-Every applied recipe is *idempotent* : re-running `beryl apply` only does
+Every applied recipe is *idempotent* : re-running `beryl sync` only does
 what is not already in the desired state.
 
 == Recipe format
@@ -210,7 +210,7 @@ Recipes accepted into this main repository must be:
 * *FreeBSD-native* (no Linuxisms — `pw`, not `useradd` ; `service`, not
   `systemctl` ; `pkg`, not `apt`).
 * *Generic* (usable by any beryl user, not Initech-specific).
-* *Idempotent* (re-running `beryl apply` several times must be a no-op).
+* *Idempotent* (re-running `beryl sync` several times must be a no-op).
 * *Documented* (clear description, typed parameters, a usage example in
   a comment if non-trivial).
 
@@ -246,4 +246,4 @@ MIT © ALOLI sas. See link:LICENSE[LICENSE].
 * https://github.com/aloli-crystal/beryl[beryl] —
   the binary that runs these recipes
 * https://github.com/aloli-crystal/beryl/blob/production/apply-recipes-architecture.adoc[apply-recipes-architecture.adoc] —
-  detailed design document for `beryl apply`
+  detailed design document for `beryl sync`

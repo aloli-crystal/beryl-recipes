@@ -44,7 +44,7 @@ côté beryl.
 
 == Vue d'ensemble
 
-beryl orchestre les recettes via la commande `beryl apply <host>`.
+beryl orchestre les recettes via la commande `beryl sync <host>`.
 Les recettes sont lues depuis :
 
 . *Le dossier d'orchestration du host* : `~/.config/beryl/<société>/<domaine>/<host>/`
@@ -53,7 +53,7 @@ Les recettes sont lues depuis :
 
 Beryl résout les `requires:` récursivement et applique le tri
 topologique. Chaque recette appliquée est *idempotente* : relancer
-`beryl apply` ne fait que ce qui n'est pas déjà à l'état désiré.
+`beryl sync` ne fait que ce qui n'est pas déjà à l'état désiré.
 
 == Format d'une recette
 
@@ -215,7 +215,7 @@ Les recettes acceptées dans ce dépôt principal doivent être :
   `service`, pas `systemctl` ; `pkg`, pas `apt`).
 * *Génériques* (utilisables par n'importe quel utilisateur de
   beryl, pas spécifiques à Initech).
-* *Idempotentes* (relancer `beryl apply` plusieurs fois doit
+* *Idempotentes* (relancer `beryl sync` plusieurs fois doit
   être un no-op).
 * *Documentées* (description claire, paramètres typés, exemple
   d'usage en commentaire si non trivial).
@@ -251,4 +251,4 @@ MIT © ALOLI sas. Voir link:LICENSE[LICENSE].
 * https://github.com/aloli-crystal/beryl[beryl] —
   le binaire qui exécute ces recettes
 * https://github.com/aloli-crystal/beryl/blob/production/apply-recipes-architecture.adoc[apply-recipes-architecture.adoc] —
-  document de design détaillé pour `beryl apply`
+  document de design détaillé pour `beryl sync`

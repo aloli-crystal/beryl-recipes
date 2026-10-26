@@ -19,14 +19,14 @@ description: |
      (ré-ouvre 22). Si l'opérateur perd l'accès après la bascule, 22 se
      ré-ouvre tout seul → pas de brick, même sans IPMI. Une fois l'overlay
      VÉRIFIÉ, l'opérateur annule le rollback avec :
-         beryl apply --recipe sshd-overlay-commit <host> --transport=overlay
+         beryl sync --recipe sshd-overlay-commit <host> --transport=overlay
      (à lancer VIA l'overlay = preuve vivante que l'accès marche).
 
   Pré-requis impératifs :
   * le laptop opérateur doit déjà être dans le mesh Headscale (client
     Tailscale actif et joint) ;
   * le binaire `beryl` + sa config doivent être présents sur le host (le
-    job `at` du rollback exécute `beryl apply` localement).
+    job `at` du rollback exécute `beryl sync` localement).
 
   Cf. doc headscale Phase 3a.
 

@@ -5,7 +5,7 @@ description: |
   chaque host du même vRack. La zone est calculée par beryl dans TOUTES les
   fiches (IP vRack de chaque `.host.yml`, `Beryl::VrackZone`) et écrite par
   cette recette à chaque apply : réappliquer suffit après un ajout ou un
-  changement d'IP (`beryl apply <groupe des bastions>`).
+  changement d'IP (`beryl sync <groupe des bastions>`).
 
   Rien d'autre n'est résolu (`local-zone: "." refuse`) : ce n'est pas un
   résolveur ouvert, seulement la zone. Les hosts l'interrogent par leur

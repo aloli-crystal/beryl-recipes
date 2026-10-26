@@ -15,7 +15,7 @@ description: |
 
   Pré-requis :
   * `BERYL_REASON='raison courte'` doit être posée dans l'env de la
-    commande `beryl apply`. La raison apparaît dans l'audit committé.
+    commande `beryl sync`. La raison apparaît dans l'audit committé.
   * Le repo `{{ company }}/headscale-state` doit être cloné sur ce host
     (cf. recipe `headscale-backup` + `headscale-backup-init.sh`).
   * Le binaire `beryl` doit être installé côté host (pour que le job

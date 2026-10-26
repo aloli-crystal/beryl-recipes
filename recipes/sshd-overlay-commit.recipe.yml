@@ -7,7 +7,7 @@ description: |
   À lancer APRÈS avoir vérifié qu'on joint bien le host par l'overlay — donc
   idéalement VIA l'overlay (preuve vivante que l'accès marche) :
 
-      beryl apply --recipe sshd-overlay-commit <host> --transport=overlay
+      beryl sync --recipe sshd-overlay-commit <host> --transport=overlay
 
   Si vous ne POUVEZ PAS lancer cette recette (accès overlay perdu), ne faites
   RIEN : le rollback se déclenchera tout seul (~2 min) et ré-ouvrira 22.

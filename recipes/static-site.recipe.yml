@@ -92,7 +92,7 @@ steps:
             parce que le site n'avait pas encore de page d'accueil.
             Remplacez-le par votre propre <code>index.html</code> : beryl ne touche
             jamais à un <code>index.html</code> existant (s'il est simplement effacé,
-            la page de test revient au prochain <code>beryl apply</code>).
+            la page de test revient au prochain <code>beryl sync</code>).
           </p>
           <p>Racine du site : <code>{{ root }}</code></p>
         </body>
