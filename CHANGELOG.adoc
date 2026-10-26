@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.60 (27 octobre 2026)
+
+=== Corrigé
+
+* `sshd-vrack-only` — règle `pass` du vRack en `flags any no state` (au
+  lieu de `flags any keep state`, 0.0.59) : l'état repris en cours de
+  session ignore la mise à l'échelle de fenêtre TCP, pf rejetait les
+  paquets « hors fenêtre » et la session de beryl se figeait ~2 min (ke,
+  27 oct. 2026). Règles rechargées (`pfctl -f`) si pf tournait déjà avec d'autres règles.
+
 == 0.0.59 (27 octobre 2026)
 
 === Corrigé

@@ -7,13 +7,19 @@ description: |
   les autres services ET les connexions établies continuent. Règles (l'ordre
   `quick` = premier qui matche gagne, donc le pass AVANT le block) :
 
-    pass  in quick inet proto tcp from <vrack_subnet> to port 22 flags any keep state  # vRack OK (IPv4)
+    pass  in quick inet proto tcp from <vrack_subnet> to port 22 flags any no state  # vRack OK (IPv4)
     block in quick      proto tcp            to port 22            # public KO (v4+v6)
 
-  `flags any` : la session SSH DÉJÀ ouverte (celle de beryl, par le bastion)
-  n'a pas d'état pf quand pf démarre ; sans lui, seuls les paquets SYN
-  passeraient la règle `pass`, ceux de la session tomberaient sur le `block`
-  et la session se figerait au `service pf start`.
+  `flags any no state` : la session SSH DÉJÀ ouverte (celle de beryl, par le
+  bastion) n'a pas d'état pf quand pf démarre. Avec l'état par défaut, seuls
+  les paquets SYN passeraient la règle (la session tomberait sur le `block`) ;
+  avec `flags any keep state`, l'état repris en cours de route ignore la
+  mise à l'échelle de fenêtre TCP et pf finit par rejeter les paquets « hors
+  fenêtre » : la session se fige au premier gros échange (vu sur ke le
+  27 oct. 2026, ~2 min de blocage puis échec). Sans état, chaque paquet du
+  vRack vers le 22 passe ; les réponses sortent par le « tout permis » de pf.
+  Rechargé (`pfctl -f`) si pf tournait déjà avec d'autres règles : les états
+  en cours sont gardés.
 
   Filtrage par SOUS-RÉSEAU vRack (pas par nom d'interface) → indépendant du
   matériel. L'IPv6 n'a pas de pass → tout l'IPv6:22 est bloqué (le vRack est
@@ -47,8 +53,14 @@ steps:
       content: |
         # Généré par beryl (recette sshd-vrack-only). NE PAS éditer à la main.
         set skip on lo
-        pass in quick inet proto tcp from {{ vrack_subnet }} to port 22 flags any keep state
+        pass in quick inet proto tcp from {{ vrack_subnet }} to port 22 flags any no state
         block in quick proto tcp to port 22
   - service-enable:
       name: pf
       start: true
+  # pf tournait déjà : `service-enable` ne recharge pas les règles. Garde :
+  # la règle sans état du vRack est déjà chargée (seule de pf.conf en
+  # `no state`).
+  - command:
+      run: "pfctl -f /etc/pf.conf"
+      unless: "pfctl -sr 2>/dev/null | grep -q 'no state'"
