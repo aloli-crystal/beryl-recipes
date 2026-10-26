@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.58 (26 octobre 2026)
+
+=== Modifié
+
+* `vrack-resolver` — après le (re)démarrage de `local_unbound`, la
+  résolution doit marcher avant la suite : un relais marqué « injoignable »
+  au premier démarrage (cache d'infrastructure, ~15 min de SERVFAIL, vu sur
+  des serveurs à l'IPv6 défaillante) est purgé (`flush_infra`) et
+  réessayé, 30 s au plus, puis échec clair — au lieu de `pkg` bloqué
+  ensuite sur « Transient resolver failure ».
+
 == 0.0.57 (26 octobre 2026)
 
 === Modifié
