@@ -1,0 +1,60 @@
+recipe: poudriere-rsync
+description: |
+  Côté BUILDER poudriere : expose en LECTURE SEULE, sur le réseau privé, le
+  dépôt de paquets (module `packages`) et les sources des ports (module
+  `distfiles`) par un démon rsync, pour les miroirs des bastions
+  (`pkg-mirror`, `distfiles-mirror`). Données publiques ou signées, sans
+  compte ni clé.
+
+  Verrous : `address = {{ vrack_ip }}` (rien sur l'IP publique), `hosts
+  allow` = `allow_from` seulement, `read only`, modules non listés, chroot.
+  Le démon relit sa configuration à chaque connexion ; un changement le
+  redémarre quand même (adresse d'écoute).
+requires_vrack: true
+requires:
+  - vrack-interface
+parameters:
+  allow_from:
+    type: string
+    default: 192.168.42.0/24
+    description: Réseau (IPv4, CIDR) autorisé à copier — le vRack.
+  distfiles:
+    type: string
+    default: /usr/local/poudriere/distfiles
+    description: Dossier des distfiles de poudriere (DISTFILES_CACHE).
+  packages:
+    type: string
+    default: /usr/local/poudriere/data/packages
+    description: Dossier des dépôts de paquets de poudriere.
+steps:
+  - pkg-install:
+      packages: [rsync]
+  - file-write:
+      path: /usr/local/etc/rsync/rsyncd.conf
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette poudriere-rsync) : lecture seule, vRack.
+        address = {{ vrack_ip }}
+        hosts allow = {{ allow_from }}
+        hosts deny = *
+        use chroot = yes
+        read only = yes
+        list = no
+        uid = nobody
+        gid = nobody
+        max connections = 6
+        timeout = 600
+
+        [packages]
+            path = {{ packages }}
+            comment = depot de paquets poudriere
+
+        [distfiles]
+            path = {{ distfiles }}
+            comment = sources des ports
+  - service-enable:
+      name: rsyncd
+      start: true
+  - service-restart:
+      name: rsyncd
+      if_changed: true

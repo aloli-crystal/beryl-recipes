@@ -14,6 +14,21 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.53 (26 octobre 2026)
+
+=== Ajouté
+
+* `mirror-http` — socle des miroirs d'un bastion : dataset `zdata/mirror`,
+  nginx en lecture seule sur l'IP vRack, pf limitant 80/443 au réseau privé.
+* `pkg-mirror` — copie du dépôt poudriere (contenu signé de `<ABI>/.latest/`
+  + `vuln.xml.xz`) toutes les 15 min, par rsync sur le vRack.
+* `distfiles-mirror` — copie quotidienne, SANS suppression, des sources des
+  ports du builder.
+* `clamav-mirror` — miroir privé des bases ClamAV par `freshclam`
+  (`CompressLocalDatabase yes`), sans Python ; clients en `PrivateMirror`.
+* `poudriere-rsync` — côté builder : démon rsync en lecture seule sur l'IP
+  vRack (modules `packages`, `distfiles`) pour ces miroirs.
+
 == 0.0.52 (25 octobre 2026)
 
 === Modifié

@@ -1,0 +1,79 @@
+recipe: pkg-mirror
+description: |
+  Miroir du dépôt de paquets poudriere sur un bastion : copie, par le
+  réseau privé, du dépôt servi par le builder (module rsync `packages`,
+  recette `poudriere-rsync`) dans `<root>/pkg/<ABI>/`, servi par
+  `mirror-http`. Les paquets et le catalogue sont SIGNÉS par la clé du
+  builder : un miroir altéré est refusé par `pkg`, le miroir n'a rien à
+  protéger.
+
+  Synchronisation toutes les 15 min (cron.d, `lockf` : jamais deux à la
+  fois) : pour chaque ABI, le contenu RÉEL du dépôt courant
+  (`<ABI>/.latest/`), avec `--delay-updates --delete-delay` → les nouveaux
+  paquets et le nouveau catalogue arrivent ensemble à la fin, les anciens
+  partent après. Plus la base des vulnérabilités enrichie (`vuln.xml.xz`).
+  La 1ʳᵉ copie (plusieurs Go) part en arrière-plan à l'apply.
+
+  Un serveur l'utilise en pointant son dépôt sur
+  `http://<ip-vrack-du-bastion>/pkg/${ABI}` (signature inchangée).
+
+  Supervision (inerte sans monit) : alerte TANT QUE la dernière copie
+  réussie a plus de 2 h.
+
+  Paramètre OBLIGATOIRE `source` : IP (vRack) du builder.
+    apply_recipes:
+      - pkg-mirror: { source: 192.168.42.1 }
+requires:
+  - mirror-http
+parameters:
+  abis:
+    type: string
+    default: "FreeBSD:15:amd64"
+    description: ABI à miroiter, séparées par des espaces.
+  root:
+    type: string
+    default: /data/mirror
+    description: Racine des miroirs (celle de `mirror-http`).
+  source:
+    type: string
+    description: Adresse (vRack) du builder qui expose le module rsync `packages`.
+steps:
+  - pkg-install:
+      packages: [rsync]
+  - file-write:
+      path: /usr/local/sbin/pkg-mirror-sync
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette pkg-mirror) : copie du dépôt de paquets.
+        set -eu
+        src="rsync://{{ source }}/packages"
+        dst="{{ root }}/pkg"
+        for abi in {{ abis }}; do
+          mkdir -p "$dst/$abi"
+          /usr/local/bin/rsync -rlt --delay-updates --delete-delay --timeout=300 \
+            "$src/$abi/.latest/" "$dst/$abi/"
+        done
+        /usr/local/bin/rsync -t --timeout=300 "$src/vuln.xml.xz" "$dst/vuln.xml.xz"
+        touch /var/db/pkg-mirror.last
+  - file-write:
+      path: /usr/local/etc/cron.d/pkg-mirror
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette pkg-mirror).
+        */15 * * * * root /usr/bin/lockf -s -t 0 /var/run/pkg-mirror.lock /usr/local/sbin/pkg-mirror-sync
+  # 1ʳᵉ copie en arrière-plan (plusieurs Go) ; ensuite, le cron.
+  - command:
+      run: "/usr/sbin/daemon -f /usr/bin/lockf -s -t 0 /var/run/pkg-mirror.lock /usr/local/sbin/pkg-mirror-sync"
+      unless: "test -e /var/db/pkg-mirror.last"
+  - file-write:
+      path: /usr/local/etc/monit.d/pkg-mirror.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette pkg-mirror).
+        check file pkg-mirror with path /var/db/pkg-mirror.last
+          if timestamp > 2 hours then alert
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

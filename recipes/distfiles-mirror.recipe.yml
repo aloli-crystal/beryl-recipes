@@ -1,0 +1,66 @@
+recipe: distfiles-mirror
+description: |
+  Copie de secours des SOURCES des ports (distfiles) du builder poudriere
+  sur un bastion : module rsync `distfiles` (recette `poudriere-rsync`) →
+  `<root>/distfiles/`, servi par `mirror-http`. Données publiques, vérifiées
+  par les empreintes (`distinfo`) des ports.
+
+  Sans `--delete`, VOLONTAIREMENT : une archive retirée du builder (ou
+  disparue de son site amont, cas des vieux ports) reste ici. C'est
+  l'intérêt de la copie : reconstruire un port dont la source n'existe plus
+  ailleurs.
+
+  Synchronisation quotidienne (cron.d, `lockf`). La 1ʳᵉ copie part en
+  arrière-plan à l'apply. Supervision (inerte sans monit) : alerte TANT QUE
+  la dernière copie réussie a plus de 2 jours.
+
+  Le builder peut s'en servir en repli automatique (`MASTER_SITE_BACKUP`
+  dans le make.conf de poudriere, à poser côté builder).
+
+  Paramètre OBLIGATOIRE `source` : IP (vRack) du builder.
+    apply_recipes:
+      - distfiles-mirror: { source: 192.168.42.1 }
+requires:
+  - mirror-http
+parameters:
+  root:
+    type: string
+    default: /data/mirror
+    description: Racine des miroirs (celle de `mirror-http`).
+  source:
+    type: string
+    description: Adresse (vRack) du builder qui expose le module rsync `distfiles`.
+steps:
+  - pkg-install:
+      packages: [rsync]
+  - file-write:
+      path: /usr/local/sbin/distfiles-mirror-sync
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette distfiles-mirror) : copie SANS suppression.
+        set -eu
+        mkdir -p "{{ root }}/distfiles"
+        /usr/local/bin/rsync -rlt --timeout=600 \
+          "rsync://{{ source }}/distfiles/" "{{ root }}/distfiles/"
+        touch /var/db/distfiles-mirror.last
+  - file-write:
+      path: /usr/local/etc/cron.d/distfiles-mirror
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette distfiles-mirror).
+        40 4 * * * root /usr/bin/lockf -s -t 0 /var/run/distfiles-mirror.lock /usr/local/sbin/distfiles-mirror-sync
+  - command:
+      run: "/usr/sbin/daemon -f /usr/bin/lockf -s -t 0 /var/run/distfiles-mirror.lock /usr/local/sbin/distfiles-mirror-sync"
+      unless: "test -e /var/db/distfiles-mirror.last"
+  - file-write:
+      path: /usr/local/etc/monit.d/distfiles-mirror.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette distfiles-mirror).
+        check file distfiles-mirror with path /var/db/distfiles-mirror.last
+          if timestamp > 2 days then alert
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

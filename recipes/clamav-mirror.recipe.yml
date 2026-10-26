@@ -1,0 +1,63 @@
+recipe: clamav-mirror
+description: |
+  Miroir PRIVÉ des bases ClamAV sur un bastion, sans Python : `freshclam`
+  lui-même télécharge les bases depuis clamav.net dans `<root>/clamav/`,
+  servi par `mirror-http` (méthode « freshclam » de la documentation
+  ClamAV, CvdPrivateMirror). `CompressLocalDatabase yes` → des `.cvd`
+  complets (pas de `.cdiff`). Les bases sont signées par ClamAV.
+
+  Les serveurs clients pointent dessus (`freshclam.conf`) :
+    PrivateMirror http://<ip-vrack-du-bastion>/clamav
+    ScriptedUpdates no
+  (vérification par requête HTTP Range, que nginx sert ; plusieurs lignes
+  `PrivateMirror` = les trois bastions en repli). Un client peut avoir une
+  version de retard sans souci.
+
+  freshclam tourne en démon (`clamav_freshclam`, contrôles par défaut 12
+  fois par jour). Supervision (inerte sans monit) : alerte TANT QUE le démon
+  est arrêté et ne revient pas.
+
+  ⚠️ Pas sur un serveur qui utilise aussi la recette `clamav` (scan) : les
+  deux écrivent `/usr/local/etc/freshclam.conf`.
+requires:
+  - mirror-http
+parameters:
+  root:
+    type: string
+    default: /data/mirror
+    description: Racine des miroirs (celle de `mirror-http`).
+steps:
+  - pkg-install:
+      packages: [clamav]
+  - directory:
+      path: "{{ root }}/clamav"
+      owner: clamav:clamav
+      mode: "0755"
+  - file-write:
+      path: /usr/local/etc/freshclam.conf
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette clamav-mirror) : miroir privé des bases.
+        DatabaseDirectory {{ root }}/clamav
+        DatabaseMirror database.clamav.net
+        CompressLocalDatabase yes
+        LogSyslog yes
+  - service-enable:
+      name: clamav_freshclam # scripts rc FreeBSD en underscore (pas tiret)
+      start: true
+  - service-restart:
+      name: clamav_freshclam
+      if_changed: true
+  - file-write:
+      path: /usr/local/etc/monit.d/clamav-mirror.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette clamav-mirror).
+        check process freshclam with pidfile /var/run/clamav/freshclam.pid
+          start program = "/usr/sbin/service clamav_freshclam start"
+          stop program  = "/usr/sbin/service clamav_freshclam stop"
+          if 3 restarts within 5 cycles then unmonitor
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

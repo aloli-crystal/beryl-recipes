@@ -1,0 +1,86 @@
+recipe: mirror-http
+description: |
+  Socle des MIROIRS d'un bastion (`pkg-mirror`, `clamav-mirror`,
+  `distfiles-mirror`) : un dataset ZFS dédié (`dataset`, monté sur `root`)
+  servi en HTTP, en lecture seule, sur le RÉSEAU PRIVÉ uniquement (IP vRack
+  du host), chaque miroir dans son sous-dossier (`<root>/pkg`, `/clamav`,
+  `/distfiles`).
+
+  Règle : un bastion est la machine la plus exposée du parc → n'y miroiter
+  QUE des données publiques ou signées, reconstructibles (paquets signés,
+  bases ClamAV signées, sources des ports). Ni sauvegardes, ni journaux, ni
+  secrets.
+
+  Réseau : nginx écoute sur `{{ vrack_ip }}:80` pour le miroir ; le socle
+  nginx-lite ouvre aussi :80 (ACME, redirection) et :443 (poignée refusée)
+  sur toutes les adresses. pf ne laisse donc passer 80/443 QUE depuis
+  `allow_from` (et la boucle locale) : rien de nouveau n'est exposé sur
+  l'IP publique. pf reste par ailleurs « tout permis » (SSH, Tang… ne
+  bougent pas).
+
+  ⚠️ Pas sur un serveur qui publie un site en 80/443 (le bloc pf le
+  couperait), ni sur un serveur qui possède `/etc/pf.conf` en entier
+  (`firewall-pf`, `sshd-vrack-only`).
+requires_vrack: true
+requires:
+  - nginx-lite
+  - vrack-interface
+parameters:
+  allow_from:
+    type: string
+    default: 192.168.42.0/24
+    description: Réseau (IPv4, CIDR) autorisé à lire les miroirs — le vRack.
+  dataset:
+    type: string
+    default: zdata/mirror
+    description: Dataset ZFS des miroirs (créé avec ses parents, hérite du montage du pool).
+  root:
+    type: string
+    default: /data/mirror
+    description: Point de montage de `dataset` (racine servie par nginx).
+steps:
+  - command:
+      run: "zfs create -p {{ dataset }}"
+      unless: "zfs list -H -o name {{ dataset }} >/dev/null 2>&1"
+  - file-write:
+      path: /usr/local/etc/nginx/conf.d/mirror.conf
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette mirror-http). Seul serveur sur cette
+        # adresse, donc aussi son serveur par défaut.
+        server {
+            listen      {{ vrack_ip }}:80;
+            server_name _;
+
+            root      {{ root }};
+            autoindex on;
+
+            # Miroirs en lecture seule : aucune requête légitime n'a de corps.
+            client_max_body_size 1k;
+
+            # Fichiers cachés (temporaires de rsync…) : jamais servis.
+            location ~ /\. {
+                return 404;
+            }
+
+            location / {
+                limit_except GET { deny all; }
+            }
+        }
+  - service-reload:
+      name: nginx
+      if_changed: true
+  # pf : module chargé AVANT les règles, puis activé au démarrage. 80/443
+  # seulement depuis le réseau privé et la boucle locale.
+  - command:
+      run: "kldload -n pf"
+      unless: "kldstat -q -m pf"
+  - pf-rule:
+      rule: "pass in quick on lo0 proto tcp to port { 80 443 }"
+  - pf-rule:
+      rule: "pass in quick inet proto tcp from {{ allow_from }} to port { 80 443 }"
+  - pf-rule:
+      rule: "block in quick proto tcp to port { 80 443 }"
+  - service-enable:
+      name: pf
+      start: true
