@@ -36,7 +36,7 @@ requires:
 parameters:
   allow_from:
     type: string
-    default: 192.168.42.0/24
+    default: "{{ vrack_subnet }}"
     description: Réseau (IPv4, CIDR) autorisé à joindre Tang — le vRack. Tout le reste (IPv6 compris) est refusé sur ce port.
   port:
     type: string

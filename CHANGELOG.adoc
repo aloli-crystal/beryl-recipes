@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.56 (26 octobre 2026)
+
+=== Modifié
+
+* `tang-server`, `mirror-http`, `poudriere-rsync`, `unbound-vrack` —
+  `allow_from` vaut par défaut `{{ vrack_subnet }}` (le `vrack.subnet` du
+  host, beryl >= 0.6.105) au lieu de `192.168.42.0/24` recopié ;
+  `sshd-vrack-only` de même pour `vrack_subnet`. Un autre réseau ne se
+  change plus que dans le `_defaults.yml`.
+
 == 0.0.55 (26 octobre 2026)
 
 === Modifié

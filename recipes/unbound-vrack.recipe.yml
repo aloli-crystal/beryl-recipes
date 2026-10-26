@@ -24,7 +24,7 @@ requires:
 parameters:
   allow_from:
     type: string
-    default: 192.168.42.0/24
+    default: "{{ vrack_subnet }}"
     description: Réseau (IPv4, CIDR) autorisé à interroger la zone — le vRack.
 steps:
   - pkg-install:
