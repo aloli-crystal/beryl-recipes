@@ -21,6 +21,12 @@ description: |
   tentatives SSH des robots (~2 500 lignes sur pkg le 13 oct. 2026) et
   noie les vulnérabilités. Les tentatives restent journalisées dans
   /var/log/auth.log ; seul leur recopiage dans le courriel disparaît.
+  La section « kernel log messages » (script `700.kernelmsg`) est coupée
+  aussi : après chaque redémarrage, elle recopie les messages de démarrage
+  du noyau (USB, horloges, carte réseau), sans action à faire ; disques,
+  ZFS et SMART sont surveillés par monit. La comparaison des programmes
+  setuid (`100.chksetuid`) reste : `beryl os-upgrade --apply` remet sa
+  référence à jour après chaque mise à jour du système de base.
 
   /etc/periodic.conf est le fichier prévu pour les réglages locaux (lu après
   /etc/defaults/periodic.conf) ; il n'existe pas sur une installation neuve.
@@ -55,4 +61,7 @@ steps:
         # Tentatives SSH : seulement dans /var/log/auth.log, plus dans le
         # courriel quotidien de sécurité.
         security_status_loginfail_enable="NO"
+
+        # Messages de démarrage du noyau : bruit après chaque redémarrage.
+        security_status_kernelmsg_enable="NO"
         {{ extra }}

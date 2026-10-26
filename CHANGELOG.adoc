@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.55 (26 octobre 2026)
+
+=== Modifié
+
+* `periodic-quiet` — section « kernel log messages » coupée
+  (`security_status_kernelmsg_enable="NO"`) : messages de démarrage du
+  noyau recopiés après chaque redémarrage, sans action à faire. La
+  comparaison setuid reste ; `beryl os-upgrade --apply` (beryl >= 0.6.104)
+  remet sa référence à jour après la mise à jour du système de base.
+
 == 0.0.54 (26 octobre 2026)
 
 === Ajouté
