@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.59 (27 octobre 2026)
+
+=== Corrigé
+
+* `sshd-vrack-only` — YAML invalide depuis 0.0.56 (description du
+  paramètre `vrack_subnet` non entre guillemets, « défaut : … ») : la
+  recette était refusée avant toute modification. Règle `pass` du vRack en
+  `flags any keep state` : la session SSH déjà ouverte au démarrage de pf
+  (sans état) n'est plus coupée par le `block` du port 22.
+
 == 0.0.58 (26 octobre 2026)
 
 === Modifié

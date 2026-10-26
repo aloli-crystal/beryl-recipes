@@ -7,8 +7,13 @@ description: |
   les autres services ET les connexions établies continuent. Règles (l'ordre
   `quick` = premier qui matche gagne, donc le pass AVANT le block) :
 
-    pass  in quick inet proto tcp from <vrack_subnet> to port 22   # vRack OK (IPv4)
+    pass  in quick inet proto tcp from <vrack_subnet> to port 22 flags any keep state  # vRack OK (IPv4)
     block in quick      proto tcp            to port 22            # public KO (v4+v6)
+
+  `flags any` : la session SSH DÉJÀ ouverte (celle de beryl, par le bastion)
+  n'a pas d'état pf quand pf démarre ; sans lui, seuls les paquets SYN
+  passeraient la règle `pass`, ceux de la session tomberaient sur le `block`
+  et la session se figerait au `service pf start`.
 
   Filtrage par SOUS-RÉSEAU vRack (pas par nom d'interface) → indépendant du
   matériel. L'IPv6 n'a pas de pass → tout l'IPv6:22 est bloqué (le vRack est
@@ -34,7 +39,7 @@ parameters:
   vrack_subnet:
     type: string
     default: "{{ vrack_subnet }}"
-    description: Sous-réseau vRack autorisé à joindre le port 22 (défaut : `vrack.subnet` du host).
+    description: "Sous-réseau vRack autorisé à joindre le port 22 (défaut : `vrack.subnet` du host)."
 steps:
   - file-write:
       path: /etc/pf.conf
@@ -42,7 +47,7 @@ steps:
       content: |
         # Généré par beryl (recette sshd-vrack-only). NE PAS éditer à la main.
         set skip on lo
-        pass in quick inet proto tcp from {{ vrack_subnet }} to port 22
+        pass in quick inet proto tcp from {{ vrack_subnet }} to port 22 flags any keep state
         block in quick proto tcp to port 22
   - service-enable:
       name: pf
