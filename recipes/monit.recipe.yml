@@ -35,7 +35,9 @@ description: |
   <état>` (catégorie française — ressources, connexion, contrôle, relance
   en échec ; l'état reste celui de
   monit, en anglais, car monit n'est pas traduit) et corps en français
-  (serveur, service, événement, action, date, détail). Le FQDN entre
+  (l'objet repris en première ligne — lisible même quand la messagerie
+  n'affiche que le corps —, puis serveur, service, événement, action,
+  date, détail). Le FQDN entre
   crochets permet de trier par serveur dans la messagerie.
 
   Sur ZFS, vérifier `/` suffit à détecter le pool plein (tous les datasets
@@ -119,7 +121,9 @@ steps:
         set alert {{ alert_email }} on { resource } with mail-format {
           from:    @@USER@@
           subject: [monit][{{ fqdn }}] $SERVICE · ressources · $EVENT
-          message: Serveur    : {{ fqdn }}
+          message: [monit][{{ fqdn }}] $SERVICE · ressources · $EVENT
+
+        Serveur    : {{ fqdn }}
         Service    : $SERVICE
         Événement  : $EVENT
         Action     : $ACTION
@@ -131,7 +135,9 @@ steps:
         set alert {{ alert_email }} on { connection } with mail-format {
           from:    @@USER@@
           subject: [monit][{{ fqdn }}] $SERVICE · connexion · $EVENT
-          message: Serveur    : {{ fqdn }}
+          message: [monit][{{ fqdn }}] $SERVICE · connexion · $EVENT
+
+        Serveur    : {{ fqdn }}
         Service    : $SERVICE
         Événement  : $EVENT
         Action     : $ACTION
@@ -143,7 +149,9 @@ steps:
         set alert {{ alert_email }} on { status } with mail-format {
           from:    @@USER@@
           subject: [monit][{{ fqdn }}] $SERVICE · contrôle · $EVENT
-          message: Serveur    : {{ fqdn }}
+          message: [monit][{{ fqdn }}] $SERVICE · contrôle · $EVENT
+
+        Serveur    : {{ fqdn }}
         Service    : $SERVICE
         Événement  : $EVENT
         Action     : $ACTION
@@ -157,7 +165,9 @@ steps:
         set alert {{ alert_email }} on { timeout, exec } with mail-format {
           from:    @@USER@@
           subject: [monit][{{ fqdn }}] $SERVICE · relance en échec · $EVENT
-          message: Serveur    : {{ fqdn }}
+          message: [monit][{{ fqdn }}] $SERVICE · relance en échec · $EVENT
+
+        Serveur    : {{ fqdn }}
         Service    : $SERVICE
         Événement  : $EVENT
         Action     : $ACTION
