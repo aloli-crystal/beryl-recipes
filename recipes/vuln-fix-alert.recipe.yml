@@ -39,8 +39,8 @@ systems: [freebsd, linux]
 parameters:
   check_schedule:
     type: string
-    default: "17 */6 * * *"
-    description: Planification du contrôle dans monit, au format cron (défaut toutes les 6 heures, à la 17ᵉ minute).
+    default: "17 0,6,12,18 * * *"
+    description: Planification du contrôle dans monit, au format cron (défaut toutes les 6 heures, à la 17ᵉ minute). Heures en LISTE, pas `*/6` — le pas n'est pas compris par monit 5.26 (SUSE).
 steps:
   - file-write:
       path: /usr/local/sbin/vuln-fix-check.sh

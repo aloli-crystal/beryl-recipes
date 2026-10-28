@@ -159,6 +159,9 @@ steps:
         set daemon {{ poll_interval }}
           with start delay 30
         set log syslog
+        # Chemin explicite : le monit de SUSE vise /run/monit/monit.pid,
+        # dossier que son paquet ne crée pas (« Monit daemon died »).
+        set pidfile /var/run/monit.pid
 
         # Relais de mail : {{ pkg_etc }}/monit.d/mailserver.conf (inclus en fin).
 
@@ -247,9 +250,14 @@ steps:
         # Relais de mail, services vitaux et sondes des autres recettes (ex.
         # zfs-scrub). Le dossier est créé par cette recette.
         include {{ pkg_etc }}/monit.d/*.conf
+  # Démarrage reporté en fin d'apply : les recettes suivantes (vuln-fix-alert,
+  # zfs-scrub…) posent leurs sondes dans monit.d/, et monit refuse de démarrer
+  # sur une sonde invalide. Démarrer avant elles bloquait sur une sonde
+  # périmée que la suite de l'apply allait justement corriger (quimeo-twin).
   - service-enable:
       name: monit
       start: true
+      deferred: true
   # Nouvelle conf prise en compte seulement si elle a changé (un
   # rechargement ne coûte rien, mais inutile s'il n'y a rien de neuf).
   - service-reload:

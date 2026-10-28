@@ -14,6 +14,20 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.65 (28 octobre 2026)
+
+=== Corrigé
+
+* `monit` — `set pidfile /var/run/monit.pid` explicite : sous SUSE, monit
+  visait `/run/monit/monit.pid`, dossier absent, et mourait au démarrage
+  (quimeo-twin). Sans effet sous FreeBSD (même chemin que son défaut).
+* `monit` — activation et démarrage reportés en fin d'apply (`deferred`) :
+  monit démarrait avant que les recettes suivantes aient corrigé leurs
+  sondes dans `monit.d/`, et mourait sur une sonde périmée.
+* `vuln-fix-alert` — planification par défaut `17 0,6,12,18 * * *` au lieu
+  de `17 */6 * * *` : monit 5.26 (SUSE) refuse le pas `*/6` et rejetait
+  toute sa configuration.
+
 == 0.0.64 (28 octobre 2026)
 
 === Modifié
