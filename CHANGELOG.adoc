@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.62 (28 octobre 2026)
+
+=== Modifié
+
+* `oh-my-zsh` — jouée aussi sous Linux (SUSE) : le shell `oh-my-zsh` d'un
+  compte n'était pas posé sur une VM Linux (quimeo-twin). Seul le chemin de
+  zsh diffère (`/usr/bin/zsh` au lieu de `/usr/local/bin/zsh`), d'où une
+  étape `user-shell` par système (`systems:`, beryl >= 0.6.139).
+* `git-lite` — jouée aussi sous Linux : installe `git-core` (git sans Perl
+  ni Python), sans rien retirer ; les étapes FreeBSD sont marquées
+  `systems: freebsd`.
+
 == 0.0.61 (27 octobre 2026)
 
 === Modifié

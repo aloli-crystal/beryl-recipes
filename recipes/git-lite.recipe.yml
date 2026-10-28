@@ -16,9 +16,19 @@ description: |
   secondes sans git). Si un paquet dépend de `git`, `pkg delete` le retire
   aussi : vérifiez le dry-run. Les dépendances devenues orphelines (python3xx,
   perl5, p5-*) sont retirées par la recette générale `pkg-autoremove`.
+
+  LINUX (SUSE) : l'équivalent est `git-core` (git sans Perl ni Python) ;
+  rien n'est retiré.
+systems: [freebsd, linux]
 steps:
   - pkg-remove:
       packages: [git]
+      systems: freebsd
 
   - pkg-install:
       packages: [git-lite]
+      systems: freebsd
+
+  - pkg-install:
+      packages: [git-core]
+      systems: linux

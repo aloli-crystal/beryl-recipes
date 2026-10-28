@@ -5,6 +5,9 @@ description: |
   déjà faite (paquets présents, clone existant, shell déjà zsh).
   Composée de primitives ÉTROITES (pas de `run` arbitraire) : pkg-install,
   git-clone (URL auditable), file-write, user-shell.
+  FreeBSD et Linux (SUSE) : seul le chemin de zsh diffère (/usr/local/bin/zsh,
+  /usr/bin/zsh), d'où une étape `user-shell` par système (`systems:`).
+systems: [freebsd, linux]
 parameters:
   user:
     type: string
@@ -37,3 +40,8 @@ steps:
   - user-shell:
       user: "{{ user }}"
       shell: /usr/local/bin/zsh
+      systems: freebsd
+  - user-shell:
+      user: "{{ user }}"
+      shell: /usr/bin/zsh
+      systems: linux
