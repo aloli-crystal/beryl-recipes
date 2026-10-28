@@ -13,10 +13,12 @@ description: |
   envoyé du tout.
 
   Rapport de SÉCURITÉ (« <host> daily security run output ») : les sections
-  sans rien à signaler disparaissent (`security_show_success="NO"`), mais
-  les INFORMATIONS restent — c'est là que sortent les vulnérabilités du
-  système de base (`405.pkg-base-audit`) et des paquets (`410.pkg-audit`).
-  La section « login failures » (script `800.loginfail`) est coupée : sur un
+  sans rien à signaler disparaissent (`security_show_success="NO"`).
+  L'audit des vulnérabilités du système de base (`405.pkg-base-audit`) et
+  des paquets (`410.pkg-audit`) est coupé : il listait chaque jour TOUS les
+  vulnérables, même sans correctif publié (rien à faire qu'attendre). La
+  recette `vuln-fix-alert` (requise) le remplace : monit n'écrit que quand
+  une mise à jour corrige une faille, avec la commande à lancer. La section « login failures » (script `800.loginfail`) est coupée : sur un
   serveur dont le port 22 est public, elle recopie chaque jour TOUTES les
   tentatives SSH des robots (~2 500 lignes sur pkg le 13 oct. 2026) et
   noie les vulnérabilités. Les tentatives restent journalisées dans
@@ -33,6 +35,8 @@ description: |
   Cette recette en devient PROPRIÉTAIRE et l'écrit en entier : si un serveur
   en a déjà un (réglages à la main), le dry-run le montre — reportez-les
   dans `extra` avant d'appliquer.
+requires:
+  - vuln-fix-alert
 parameters:
   extra:
     type: string
@@ -55,8 +59,13 @@ steps:
         monthly_show_success="NO"
         monthly_show_info="NO"
 
-        # Sécurité : sections vides masquées ; vulnérabilités (info) gardées.
+        # Sécurité : sections vides masquées.
         security_show_success="NO"
+
+        # Vulnérabilités : remplacé par la sonde monit de vuln-fix-alert,
+        # qui n'alerte que quand un correctif est disponible.
+        security_status_baseaudit_enable="NO"
+        security_status_pkgaudit_enable="NO"
 
         # Tentatives SSH : seulement dans /var/log/auth.log, plus dans le
         # courriel quotidien de sécurité.

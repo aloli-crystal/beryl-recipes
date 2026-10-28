@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.63 (28 octobre 2026)
+
+=== Ajouté
+
+* `vuln-fix-alert` — sonde monit (toutes les 6 h) : alerte seulement quand
+  une mise à jour CORRIGE une faille connue (paquet vulnérable avec une
+  version plus récente disponible, système de base vulnérable avec un
+  correctif publié ou un noyau corrigé en attente de redémarrage), avec la
+  commande à lancer (`beryl upgrade …` / `beryl os-upgrade …`). Un
+  vulnérable sans correctif ne déclenche rien.
+
+=== Modifié
+
+* `periodic-quiet` — audit quotidien des vulnérabilités coupé
+  (`security_status_pkgaudit_enable` et `security_status_baseaudit_enable`
+  à `NO`), remplacé par `vuln-fix-alert`, désormais requise.
+
 == 0.0.62 (28 octobre 2026)
 
 === Modifié

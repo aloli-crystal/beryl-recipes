@@ -1,0 +1,120 @@
+recipe: vuln-fix-alert
+description: |
+  Alerte monit quand une mise à jour CORRIGE une faille connue : un paquet
+  vulnérable (`pkg audit`) dont une version plus récente est disponible, ou
+  un système de base vulnérable avec un correctif publié (ou déjà installé
+  mais pas encore chargé : redémarrage). Le courriel dit la commande à
+  lancer (`beryl upgrade …` ou `beryl os-upgrade …`).
+
+  POURQUOI : un mail = une action à faire. Un paquet vulnérable SANS
+  correctif n'appelle aucune action (attendre la publication) : il ne
+  déclenche rien. Le rapport de sécurité quotidien de periodic(8), lui,
+  listait chaque jour tous les vulnérables, corrigeables ou non ; la
+  recette `periodic-quiet` y coupe l'audit et s'appuie sur celle-ci.
+
+  monit envoie UN courriel quand un correctif devient disponible, puis un
+  courriel « rétabli » une fois la mise à jour faite — pas de rappel
+  quotidien entre les deux. Le contrôle tourne toutes les 6 heures
+  (`check_schedule`) : il met à jour la base des failles (`pkg audit -F`)
+  et les catalogues des dépôts (`pkg update`), sans rien installer.
+
+  Système de base : mêmes noms que le script `405.pkg-base-audit` de pkg
+  (`FreeBSD-<version>` pour le userland, `FreeBSD-kernel-<version>` pour le
+  noyau EN SERVICE). Correctif disponible = mise à jour en attente dans le
+  dépôt `FreeBSD-base` (pkgbase).
+
+  Codes de sortie : 0 = rien à faire, 1 = correctif à installer (alerte
+  immédiate), 2 = contrôle impossible (dépôt ou base des failles
+  injoignable ; alerte seulement si cela dure deux contrôles de suite).
+requires:
+  - monit
+parameters:
+  check_schedule:
+    type: string
+    default: "17 */6 * * *"
+    description: Planification du contrôle dans monit, au format cron (défaut toutes les 6 heures, à la 17ᵉ minute).
+steps:
+  - file-write:
+      path: /usr/local/sbin/vuln-fix-check.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette vuln-fix-alert). Pour monit.
+        # exit 0 = rien à faire ; 1 = une mise à jour corrige une faille ;
+        # 2 = contrôle impossible.
+        set -u
+        host='{{ fqdn }}'
+        rc=0
+
+        # Catalogues des dépôts et base des failles à jour.
+        if ! pkg update -q >/dev/null 2>&1; then
+          echo "contrôle impossible : pkg update a échoué (dépôts injoignables ?)"
+          exit 2
+        fi
+        # Le code retour de pkg audit ne sépare pas « vulnérable » d'une
+        # erreur : on lit sa sortie (-q = un « nom-version » vulnérable par
+        # ligne) et l'âge de vuln.xml (téléchargement raté = fichier ancien,
+        # même seuil de 2 jours que 410.pkg-audit).
+        vulns=$(pkg audit -F -q 2>/dev/null)
+        auditfile="$(pkg config PKG_DBDIR)/vuln.xml"
+        fetched=$(stat -f '%m' "$auditfile" 2>/dev/null || echo 0)
+        if [ $(( $(date +%s) - fetched )) -gt 172800 ]; then
+          echo "contrôle impossible : base des failles absente ou de plus de 2 jours ($auditfile)"
+          exit 2
+        fi
+
+        # Paquets logiciels : vulnérable ET mise à jour disponible.
+        pending=$(pkg upgrade -nU 2>/dev/null | awk '/ -> / && $NF != "[FreeBSD-base]" { sub(/:$/, "", $1); print $1, $2, $4 }')
+        for v in $vulns; do
+          name=${v%-*}
+          fix=$(echo "$pending" | awk -v n="$name" '$1 == n { print $2 " → " $3 }')
+          if [ -n "$fix" ]; then
+            echo "$name $fix corrige une faille"
+            rc=1
+          fi
+        done
+        if [ $rc -eq 1 ]; then
+          echo "→ beryl upgrade $host --apply"
+        fi
+
+        # Système de base (pkgbase) : userland installé, noyau en service.
+        # (FreeBSD-runtime installé comme paquet = système de base en pkgbase.)
+        if pkg info -e FreeBSD-runtime; then
+          userland=$(freebsd-version -u | sed 's,^,FreeBSD-,;s,-RELEASE-p,_,;s,-RELEASE$,,')
+          kernel=$(freebsd-version -r | sed 's,^,FreeBSD-kernel-,;s,-RELEASE-p,_,;s,-RELEASE$,,')
+          base_vulns=""
+          [ -n "$(pkg audit -q "$userland" 2>/dev/null)" ] && base_vulns="$userland"
+          [ -n "$(pkg audit -q "$kernel" 2>/dev/null)" ] && base_vulns="$base_vulns $kernel"
+          base_vulns=${base_vulns# }
+          if [ -n "$base_vulns" ]; then
+            if pkg upgrade -nU -r FreeBSD-base 2>/dev/null | grep -q '^Number of packages to be'; then
+              echo "système de base vulnérable ($base_vulns) : correctif disponible"
+              echo "→ beryl os-upgrade $host --apply --reboot"
+              rc=1
+            elif [ "$(freebsd-version -k)" != "$(freebsd-version -r)" ]; then
+              echo "noyau en service vulnérable ($kernel) : correctif installé, redémarrage en attente"
+              echo "→ beryl os-upgrade $host --apply --reboot"
+              rc=1
+            fi
+          fi
+        fi
+
+        exit $rc
+
+  - file-write:
+      path: /usr/local/etc/monit.d/vuln-fix.conf
+      mode: "0644"
+      owner: "root:wheel"
+      content: |
+        # Géré par beryl (recette vuln-fix-alert). Inclus par monitrc.
+        check program vuln-fix with path "/usr/local/sbin/vuln-fix-check.sh"
+          with timeout 600 seconds
+          every "{{ check_schedule }}"
+          if status = 1 then alert
+          if status > 1 for 2 cycles then alert
+
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true
