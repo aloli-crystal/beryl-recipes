@@ -14,6 +14,25 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.64 (28 octobre 2026)
+
+=== Modifié
+
+* `monit` — jouée aussi sous Linux (SUSE) : monit vient de SUSE Package
+  Hub, activé par la recette (`suseconnect`) ; fichiers dans `{{ pkg_etc }}`
+  (beryl >= 0.6.141). Relais de mail dans `monit.d/mailserver.conf` :
+  avec `SMTP_RELAY_PASSWORD` dans le coffre, authentification + TLS comme
+  avant ; sans, envoi direct sans authentification (relais interne d'un
+  client, port 25). Sondes sshd/cron déplacées dans `monit.d/services.conf`,
+  FreeBSD seulement (systemd relance ces services sous Linux).
+* `vuln-fix-alert` — jouée aussi sous Linux (SUSE) : alerte quand un
+  correctif de sécurité attend (`zypper list-patches --category security`)
+  ou qu'un correctif installé demande un redémarrage, avec la commande
+  `beryl sync <serveur> zypper-patch --apply`.
+* Descriptions (`monit`, `ipsec-site-to-site`, `db-dump-signed`) : variables
+  du coffre propres à un serveur nommées serveur en tête
+  (`<SERVEUR>__SMTP_RELAY_USER`, `<HÔTE>__IPSEC_PSK`…), beryl >= 0.6.141.
+
 == 0.0.63 (28 octobre 2026)
 
 === Ajouté

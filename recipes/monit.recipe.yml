@@ -21,12 +21,20 @@ description: |
   consécutifs (~7 min) pour ignorer les pics brefs.
 
   monit envoie ses alertes en SMTP direct via le smarthost (mêmes
-  paramètres que `smtp-relay`). Le COUPLE [utilisateur, mot de passe] vient
-  du COFFRE (`SMTP_RELAY_USER` + `SMTP_RELAY_PASSWORD`), injecté par
-  `secret-file` → jamais dans git. monitrc est en 0600 (monit refuse un
-  control file plus permissif que 0700). Le couple est donc écrit dans 2
-  fichiers 0600 (auth.conf de dma + monitrc), alimentés par les MÊMES
-  variables du coffre.
+  paramètres que `smtp-relay`), décrit dans `monit.d/mailserver.conf`.
+  Avec `SMTP_RELAY_PASSWORD` dans le coffre : authentification
+  (`SMTP_RELAY_USER` + mot de passe) et TLS, en `secret-file` 0600 →
+  jamais dans git. SANS mot de passe (relais interne qui accepte selon
+  l'adresse IP, ex. le relais d'un client sur le port 25) : envoi direct,
+  sans authentification. Dans les deux cas, `SMTP_RELAY_USER` est
+  l'adresse d'expéditeur des mails. Chaque variable peut être propre à un
+  serveur (`<SERVEUR>__SMTP_RELAY_USER`…). monitrc est en 0600 (monit
+  refuse un control file plus permissif que 0700).
+
+  LINUX (SUSE) : monit vient de SUSE Package Hub (paquets de la
+  communauté, sans support SUSE), activé par la recette (`suseconnect`) ;
+  fichiers dans /etc (`{{ pkg_etc }}`, beryl >= 0.6.141). Pas de sonde
+  sshd/cron : systemd les relance déjà.
 
   CLI : `monit status` / `monit summary` (via socket Unix local — aucun
   port réseau ouvert). Seuils ajustables par paramètres.
@@ -83,30 +91,76 @@ parameters:
     type: string
     default: "60"
     description: Intervalle de contrôle monit (secondes) — aussi le délai maximal avant relance d'un service tombé.
+systems: [freebsd, linux]
 steps:
+  # SUSE : monit n'est que dans Package Hub. `suseconnect` est la commande
+  # que SLES indique lui-même (`suseconnect --list-extensions`).
+  - command:
+      run: |
+        . /etc/os-release
+        suseconnect -p "PackageHub/${VERSION_ID}/$(uname -m)"
+      unless: "zypper --non-interactive lr | grep -qiE 'package_?hub'"
+      systems: linux
   - pkg-install:
       packages: [monit]
   # Dossier des sondes déposées par les autres recettes : créé ici pour que
   # l'`include` de monitrc ne lève pas d'avertissement tant qu'il est vide.
   - directory:
-      path: /usr/local/etc/monit.d
+      path: "{{ pkg_etc }}/monit.d"
       mode: "0700"
-  # monitrc contient la paire SMTP → secret-file (0600), valeurs du coffre.
+  # Relais de mail : avec mot de passe (authentification + TLS) ou sans
+  # (relais interne qui accepte selon l'adresse IP), selon le coffre.
   - secret-file:
-      path: /usr/local/etc/monitrc
+      path: "{{ pkg_etc }}/monit.d/mailserver.conf"
       mode: "0600"
+      if_secret: SMTP_RELAY_PASSWORD
       env:
         "@@USER@@": SMTP_RELAY_USER
         "@@SECRET@@": SMTP_RELAY_PASSWORD
+      content: |
+        # Géré par beryl (recette monit). Relais avec authentification.
+        set mailserver {{ smarthost }} port {{ smarthost_port }}
+          username "@@USER@@" password "@@SECRET@@"
+          using tlsv12
+  - file-write:
+      path: "{{ pkg_etc }}/monit.d/mailserver.conf"
+      mode: "0600"
+      unless_secret: SMTP_RELAY_PASSWORD
+      content: |
+        # Géré par beryl (recette monit). Relais sans authentification.
+        set mailserver {{ smarthost }} port {{ smarthost_port }}
+  # Services vitaux (FreeBSD) : relancés SANS mail s'ils tombent ; alerte
+  # seulement s'ils ne reviennent pas. Sans sshd, plus aucun accès au
+  # serveur ; sans cron, plus de tâches planifiées (scrubs, renouvellement
+  # des certificats, rapports…). Sous Linux, systemd s'en charge.
+  - file-write:
+      path: "{{ pkg_etc }}/monit.d/services.conf"
+      mode: "0600"
+      systems: freebsd
+      content: |
+        # Géré par beryl (recette monit). Inclus par monitrc.
+        check process sshd with pidfile /var/run/sshd.pid
+          start program = "/usr/sbin/service sshd start"
+          stop program  = "/usr/sbin/service sshd stop"
+          if 3 restarts within 5 cycles then unmonitor
+
+        check process cron with pidfile /var/run/cron.pid
+          start program = "/usr/sbin/service cron start"
+          stop program  = "/usr/sbin/service cron stop"
+          if 3 restarts within 5 cycles then unmonitor
+  # monitrc contient l'adresse d'expéditeur (coffre) → secret-file (0600).
+  - secret-file:
+      path: "{{ pkg_etc }}/monitrc"
+      mode: "0600"
+      env:
+        "@@USER@@": SMTP_RELAY_USER
       content: |
         # Géré par beryl (recette monit).
         set daemon {{ poll_interval }}
           with start delay 30
         set log syslog
 
-        set mailserver {{ smarthost }} port {{ smarthost_port }}
-          username "@@USER@@" password "@@SECRET@@"
-          using tlsv12
+        # Relais de mail : {{ pkg_etc }}/monit.d/mailserver.conf (inclus en fin).
 
         # Mails en FRANÇAIS. monit n'est pas traduit : $EVENT (« Resource
         # limit matched », « Connection succeeded »…), $ACTION et $DESCRIPTION
@@ -186,27 +240,13 @@ steps:
           if memory usage > 85% for 7 cycles then alert
           if swap usage   > 50% for 7 cycles then alert
 
-        # Services vitaux : relancés SANS mail s'ils tombent ; alerte
-        # seulement s'ils ne reviennent pas. Sans sshd, plus aucun accès au
-        # serveur ; sans cron, plus de tâches planifiées (scrubs,
-        # renouvellement des certificats, rapports…).
-        check process sshd with pidfile /var/run/sshd.pid
-          start program = "/usr/sbin/service sshd start"
-          stop program  = "/usr/sbin/service sshd stop"
-          if 3 restarts within 5 cycles then unmonitor
-
-        check process cron with pidfile /var/run/cron.pid
-          start program = "/usr/sbin/service cron start"
-          stop program  = "/usr/sbin/service cron stop"
-          if 3 restarts within 5 cycles then unmonitor
-
         check filesystem rootfs with path /
           if space usage > {{ disk_threshold }}% then alert
           if inode usage > {{ disk_threshold }}% then alert
 
-        # Checks additionnels déposés par d'autres recettes (ex. zfs-scrub).
-        # Le dossier est créé par cette recette ; un glob vide est toléré.
-        include /usr/local/etc/monit.d/*.conf
+        # Relais de mail, services vitaux et sondes des autres recettes (ex.
+        # zfs-scrub). Le dossier est créé par cette recette.
+        include {{ pkg_etc }}/monit.d/*.conf
   - service-enable:
       name: monit
       start: true

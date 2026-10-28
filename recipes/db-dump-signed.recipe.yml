@@ -14,7 +14,7 @@ description: |
   CLÉ DE SIGNATURE (une fois, hors serveur) :
     ssh-keygen -t ed25519 -N "" -C twin-<name> -f twin-signing
   Mettez `base64 -i twin-signing` (une ligne) au coffre sous
-  `TWIN_SIGNING_KEY__<HÔTE>` (propre à ce serveur) ; la ligne
+  `<HÔTE>__TWIN_SIGNING_KEY` (propre à ce serveur) ; la ligne
   `<name> <contenu de twin-signing.pub>` va dans `allowed_signers` du jumeau.
 
   `recipient` = clé PUBLIQUE age du jumeau (`age1…`), générée sur le jumeau.

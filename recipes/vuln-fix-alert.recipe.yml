@@ -26,8 +26,16 @@ description: |
   Codes de sortie : 0 = rien à faire, 1 = correctif à installer (alerte
   immédiate), 2 = contrôle impossible (dépôt ou base des failles
   injoignable ; alerte seulement si cela dure deux contrôles de suite).
+
+  LINUX (SUSE) : correctifs de sécurité en attente (`zypper list-patches
+  --category security`, statut « needed ») → la commande à lancer est
+  `beryl sync <serveur> zypper-patch --apply`. Les correctifs SUSE gardent
+  la version de la distribution : « en attente » = « correctif publié ».
+  Un redémarrage demandé par un correctif déjà installé
+  (`zypper needs-rebooting`) est signalé aussi.
 requires:
   - monit
+systems: [freebsd, linux]
 parameters:
   check_schedule:
     type: string
@@ -37,7 +45,41 @@ steps:
   - file-write:
       path: /usr/local/sbin/vuln-fix-check.sh
       mode: "0755"
-      owner: "root:wheel"
+      systems: linux
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette vuln-fix-alert). Pour monit (SUSE).
+        # exit 0 = rien à faire ; 1 = un correctif de sécurité attend ;
+        # 2 = contrôle impossible.
+        set -u
+        host='{{ fqdn }}'
+        rc=0
+
+        if ! zypper --non-interactive --quiet refresh >/dev/null 2>&1; then
+          echo "contrôle impossible : zypper refresh a échoué (dépôts injoignables ?)"
+          exit 2
+        fi
+        needed=$(LC_ALL=C zypper --non-interactive list-patches --category security 2>/dev/null | grep '| needed')
+        if [ -n "$needed" ]; then
+          echo "correctifs de sécurité SUSE en attente :"
+          echo "$needed" | awk -F'|' '{ gsub(/^ +| +$/, "", $2); print "  " $2 }'
+          echo "→ beryl sync $host zypper-patch --apply"
+          rc=1
+        fi
+
+        # zypper needs-rebooting : 102 = redémarrage demandé par un correctif.
+        zypper --non-interactive needs-rebooting >/dev/null 2>&1
+        if [ $? -eq 102 ]; then
+          echo "correctif installé, redémarrage en attente → à planifier"
+          rc=1
+        fi
+
+        exit $rc
+
+  - file-write:
+      path: /usr/local/sbin/vuln-fix-check.sh
+      mode: "0755"
+      systems: freebsd
       content: |
         #!/bin/sh
         # Géré par beryl (recette vuln-fix-alert). Pour monit.
@@ -103,9 +145,8 @@ steps:
         exit $rc
 
   - file-write:
-      path: /usr/local/etc/monit.d/vuln-fix.conf
+      path: "{{ pkg_etc }}/monit.d/vuln-fix.conf"
       mode: "0644"
-      owner: "root:wheel"
       content: |
         # Géré par beryl (recette vuln-fix-alert). Inclus par monitrc.
         check program vuln-fix with path "/usr/local/sbin/vuln-fix-check.sh"

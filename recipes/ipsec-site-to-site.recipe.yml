@@ -22,7 +22,7 @@ description: |
   le temps de négocier le SA).
 
   CLÉ PARTAGÉE (PSK) : au coffre sous `IPSEC_PSK` (variante par serveur
-  `IPSEC_PSK__<HÔTE>` prioritaire), transmise à l'équipe d'en face par un canal
+  `<HÔTE>__IPSEC_PSK` prioritaire), transmise à l'équipe d'en face par un canal
   séparé. Générez-la avec `openssl rand -base64 33` (sans guillemet `"`).
 
   PROPOSITIONS : `ike_proposals` / `esp_proposals` DOIVENT reprendre celles du
