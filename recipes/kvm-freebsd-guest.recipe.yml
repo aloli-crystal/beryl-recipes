@@ -1,0 +1,231 @@
+recipe: kvm-freebsd-guest
+description: |
+  Machine virtuelle FreeBSD dans un serveur Linux (SUSE) : pour faire
+  tourner des logiciels FreeBSD sur une machine où l'on ne peut installer
+  que Linux (VM confiée par un client, par exemple). Solution de
+  dépannage : une machine FreeBSD native reste préférable.
+
+  QEMU/KVM lancé par une unité systemd (`freebsd-vm.service`), sous un
+  compte système dédié (`freebsdvm`, groupe `kvm`), sans libvirt, sans
+  pont réseau ni règle de pare-feu : le réseau « utilisateur » de QEMU fait
+  sortir l'invité par l'adresse de l'hôte, et seuls les ports listés sont
+  redirigés vers lui. SSH de l'invité sur 127.0.0.1:`ssh_port` de l'hôte.
+
+  Disque : image officielle FreeBSD `BASIC-CLOUDINIT` (ZFS), somme
+  SHA-256 vérifiée, agrandie à `disk_size` (l'invité étend son pool au
+  premier démarrage). Premier démarrage configuré par `nuageinit(7)` à
+  partir d'un disque `cidata` : nom d'hôte, compte `user` avec la clé
+  `key` et sudo sans mot de passe. Ensuite, l'invité se gère comme tout
+  serveur FreeBSD (host.yml `os: freebsd`, rebond par l'hôte).
+
+  Arrêt propre : `systemctl stop freebsd-vm` envoie le bouton
+  d'alimentation ACPI à l'invité (moniteur QEMU) et attend son arrêt.
+  Console série de secours :
+    sudo socat -,raw,echo=0 UNIX-CONNECT:/run/freebsd-vm/console.sock
+
+  Pré-requis : virtualisation matérielle visible (`/dev/kvm`), accès
+  HTTPS à download.freebsd.org depuis l'hôte (premier apply seulement).
+
+  Le disque n'est créé qu'UNE fois : changer `release` ou `disk_size`
+  ensuite n'a pas d'effet (le système de l'invité se met à jour de
+  l'intérieur, `beryl os-upgrade`). Un changement de l'unité (mémoire,
+  processeurs, ports) prend effet au prochain redémarrage de la VM
+  (`systemctl restart freebsd-vm`, l'invité redémarre).
+
+    apply_recipes:
+      - kvm-freebsd-guest: { key: "ssh-ed25519 AAAA… admin", memory: 10G, forwards: "tcp::443-:443" }
+systems: [linux]
+parameters:
+  cpus:
+    type: string
+    default: "2"
+    description: Processeurs virtuels de l'invité.
+  disk_size:
+    type: string
+    default: 100G
+    description: Taille du disque de l'invité (à la création seulement).
+  forwards:
+    type: string
+    default: ""
+    description: |
+      Redirections supplémentaires vers l'invité, au format `hostfwd` de
+      QEMU, séparées par des virgules (ex. `tcp::443-:443` : port 443 de
+      l'hôte, toutes adresses → port 443 de l'invité). Vide = SSH seul.
+  hostname:
+    type: string
+    default: freebsd-vm
+    description: Nom d'hôte de l'invité.
+  key:
+    type: string
+    default: ""
+    description: Clé publique SSH du compte `user` de l'invité (obligatoire).
+  memory:
+    type: string
+    default: 4G
+    description: Mémoire de l'invité (format QEMU, ex. 10G).
+  release:
+    type: string
+    default: "15.1"
+    description: Version de FreeBSD de l'image (à la création seulement).
+  ssh_port:
+    type: string
+    default: "2222"
+    description: Port de l'hôte (127.0.0.1) redirigé vers le SSH de l'invité.
+  user:
+    type: string
+    default: admin
+    description: Compte d'administration créé dans l'invité.
+steps:
+  - command:
+      run: "echo 'kvm-freebsd-guest : key (clé publique) obligatoire' >&2; exit 1"
+      unless: "test -n '{{ key }}'"
+  - command:
+      run: "echo 'kvm-freebsd-guest : /dev/kvm absent (virtualisation matérielle non exposée)' >&2; exit 1"
+      unless: "test -c /dev/kvm"
+  - pkg-install:
+      packages: [qemu-img, qemu-x86, socat, xorriso]
+  - command:
+      run: "useradd --system --home-dir /var/lib/freebsd-vm --no-create-home --shell /sbin/nologin --groups kvm --comment 'VM FreeBSD (beryl)' freebsdvm"
+      unless: "id freebsdvm >/dev/null 2>&1"
+  - directory:
+      path: /var/lib/freebsd-vm
+      mode: "0750"
+      owner: freebsdvm:kvm
+  - directory:
+      path: /var/lib/freebsd-vm/seed
+      mode: "0750"
+      owner: freebsdvm:kvm
+  # Image officielle : téléchargée, vérifiée contre CHECKSUM.SHA256 (format
+  # BSD, lu par `sha256sum -c`), décompressée puis agrandie. Écrite sous un
+  # nom provisoire : un échec en cours de route ne laisse pas de disque
+  # à moitié prêt que la garde prendrait pour bon.
+  - command:
+      run: |
+        set -e
+        base="https://download.freebsd.org/releases/VM-IMAGES/{{ release }}-RELEASE/amd64/Latest"
+        img="FreeBSD-{{ release }}-RELEASE-amd64-BASIC-CLOUDINIT-zfs.qcow2"
+        work=/var/lib/freebsd-vm/download
+        rm -rf "$work"
+        mkdir -p "$work"
+        cd "$work"
+        curl -fsSLO "$base/CHECKSUM.SHA256"
+        curl -fsSLO "$base/$img.xz"
+        grep "($img.xz)" CHECKSUM.SHA256 | sha256sum -c -
+        xz -d "$img.xz"
+        qemu-img resize "$img" {{ disk_size }}
+        chown freebsdvm:kvm "$img"
+        chmod 0640 "$img"
+        mv "$img" /var/lib/freebsd-vm/disk.qcow2
+        cd /
+        rm -rf "$work"
+      unless: "test -f /var/lib/freebsd-vm/disk.qcow2"
+      show_output: true
+  - file-write:
+      path: /var/lib/freebsd-vm/seed/meta-data
+      mode: "0640"
+      owner: freebsdvm:kvm
+      content: |
+        instance-id: {{ hostname }}
+        local-hostname: {{ hostname }}
+  # sudo vient des paquets officiels (installé au premier démarrage par
+  # nuageinit, l'invité sortant par l'hôte) ; la recette `sudo-user` n'est
+  # pas utilisable dans l'invité (FreeBSD : comptes par `freebsd.users`).
+  - file-write:
+      path: /var/lib/freebsd-vm/seed/user-data
+      mode: "0640"
+      owner: freebsdvm:kvm
+      content: |
+        #cloud-config
+        hostname: {{ hostname }}
+        ssh_pwauth: false
+        package_update: true
+        packages:
+          - sudo
+        users:
+          - name: {{ user }}
+            gecos: Administration (beryl)
+            shell: /bin/sh
+            sudo: "ALL=(ALL) NOPASSWD: ALL"
+            ssh_authorized_keys:
+              - {{ key }}
+        network:
+          ethernets:
+            vtnet0:
+              dhcp4: true
+        runcmd:
+          - sysrc sshd_enable=YES
+          - service sshd start
+  # Disque cidata (ISO 9660), lu par nuageinit au premier démarrage
+  # seulement : le refaire ensuite ne change rien à l'invité.
+  - command:
+      run: |
+        set -e
+        cd /var/lib/freebsd-vm
+        xorriso -as mkisofs -quiet -volid cidata -joliet -rock -output seed.iso.new seed
+        chown freebsdvm:kvm seed.iso.new
+        chmod 0640 seed.iso.new
+        mv seed.iso.new seed.iso
+      unless: "test /var/lib/freebsd-vm/seed.iso -nt /var/lib/freebsd-vm/seed/user-data -a /var/lib/freebsd-vm/seed.iso -nt /var/lib/freebsd-vm/seed/meta-data"
+  # Lancement de QEMU (`exec` : QEMU devient le processus principal de
+  # l'unité). Moniteur et console sur sockets Unix (dans /run/freebsd-vm,
+  # 0750) : jamais de port réseau pour piloter la VM. `-cpu host` : l'invité
+  # voit le processeur réel (AES-NI…).
+  - file-write:
+      path: /usr/local/sbin/freebsd-vm-start
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette kvm-freebsd-guest).
+        fwd=""
+        for f in $(echo "{{ forwards }}" | tr ',' ' '); do
+          fwd="$fwd,hostfwd=$f"
+        done
+        exec /usr/bin/qemu-system-x86_64 \
+          -name {{ hostname }} \
+          -machine q35,accel=kvm \
+          -cpu host \
+          -smp {{ cpus }} \
+          -m {{ memory }} \
+          -drive file=/var/lib/freebsd-vm/disk.qcow2,if=virtio,format=qcow2,cache=none,discard=unmap \
+          -drive file=/var/lib/freebsd-vm/seed.iso,media=cdrom,readonly=on \
+          -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:{{ ssh_port }}-:22$fwd" \
+          -device virtio-net-pci,netdev=net0,romfile= \
+          -device virtio-rng-pci \
+          -display none \
+          -vga none \
+          -serial unix:/run/freebsd-vm/console.sock,server=on,wait=off \
+          -monitor unix:/run/freebsd-vm/monitor.sock,server=on,wait=off
+  # CAP_NET_BIND_SERVICE : redirection d'un port < 1024 (443…) sans faire
+  # tourner QEMU en root.
+  - file-write:
+      path: /etc/systemd/system/freebsd-vm.service
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette kvm-freebsd-guest).
+        [Unit]
+        Description=Machine virtuelle FreeBSD ({{ hostname }})
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=simple
+        User=freebsdvm
+        Group=kvm
+        RuntimeDirectory=freebsd-vm
+        RuntimeDirectoryMode=0750
+        AmbientCapabilities=CAP_NET_BIND_SERVICE
+        CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+        NoNewPrivileges=yes
+        ExecStart=/usr/local/sbin/freebsd-vm-start
+        ExecStop=/bin/sh -c 'echo system_powerdown | socat - UNIX-CONNECT:/run/freebsd-vm/monitor.sock; while kill -0 $MAINPID 2>/dev/null; do sleep 1; done'
+        TimeoutStopSec=180
+        Restart=on-failure
+        RestartSec=10
+
+        [Install]
+        WantedBy=multi-user.target
+  - command:
+      run: systemctl daemon-reload
+      unless: "systemctl show -p NeedDaemonReload --value freebsd-vm 2>/dev/null | grep -qx no"
+  - service-enable:
+      name: freebsd-vm

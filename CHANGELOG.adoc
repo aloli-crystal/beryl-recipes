@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.66 (29 octobre 2026)
+
+=== Ajouté
+
+* `kvm-freebsd-guest` — machine virtuelle FreeBSD dans un serveur SUSE
+  (QEMU/KVM par une unité systemd, compte système dédié, sans libvirt ni
+  pont réseau) : image officielle `BASIC-CLOUDINIT` vérifiée et agrandie,
+  premier démarrage par `nuageinit` (compte à clé SSH, sudo), SSH de
+  l'invité sur 127.0.0.1 de l'hôte, redirections de ports facultatives,
+  arrêt propre par le bouton ACPI. Pour une machine où seul Linux est
+  permis.
+
 == 0.0.65 (28 octobre 2026)
 
 === Corrigé
