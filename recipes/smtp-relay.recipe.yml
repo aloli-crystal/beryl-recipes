@@ -18,6 +18,11 @@ description: |
   `From` soit le compte authentifié → `MASQUERADE` réécrit tout l'envoi vers
   `SMTP_RELAY_USER`.
 
+  SANS mot de passe (relais interne qui accepte selon l'adresse IP, ex. le
+  relais d'un client sur le port 25 ; mot de passe absent ou vide pour ce
+  serveur, `<SERVEUR>__SMTP_RELAY_PASSWORD = ''`) : pas d'authentification,
+  TLS seulement si le relais le propose (`OPPORTUNISTIC_TLS`).
+
   PRÉ-REQUIS — poser la config mail dans le coffre AVANT l'apply :
 
     beryl env edit <société>
@@ -59,6 +64,7 @@ steps:
       path: /etc/dma/dma.conf
       owner: "root:mail"
       mode: "0640"
+      if_secret: SMTP_RELAY_PASSWORD
       env:
         "@@USER@@": SMTP_RELAY_USER
       content: |
@@ -69,11 +75,29 @@ steps:
         SECURETRANSFER
         STARTTLS
         MASQUERADE @@USER@@
+  # Relais sans authentification : TLS tenté, envoi en clair si le relais
+  # ne le propose pas.
+  - secret-file:
+      path: /etc/dma/dma.conf
+      owner: "root:mail"
+      mode: "0640"
+      unless_secret: SMTP_RELAY_PASSWORD
+      env:
+        "@@USER@@": SMTP_RELAY_USER
+      content: |
+        # Géré par beryl (recette smtp-relay) — cf. dma.conf(5). Relais sans authentification.
+        SMARTHOST {{ smarthost }}
+        PORT {{ smarthost_port }}
+        SECURETRANSFER
+        STARTTLS
+        OPPORTUNISTIC_TLS
+        MASQUERADE @@USER@@
   # La paire [user, password] du coffre.
   - secret-file:
       path: /etc/dma/auth.conf
       owner: "root:mail"
       mode: "0640"
+      if_secret: SMTP_RELAY_PASSWORD
       env:
         "@@USER@@": SMTP_RELAY_USER
         "@@SECRET@@": SMTP_RELAY_PASSWORD

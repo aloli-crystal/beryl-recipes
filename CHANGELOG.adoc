@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.67 (29 octobre 2026)
+
+=== Ajouté
+
+* `smtp-relay` — relais SANS authentification (mot de passe absent ou vide
+  pour le serveur dans le coffre, ex. le relais d'un client sur le port 25) :
+  pas d'`auth.conf`, TLS tenté seulement (`OPPORTUNISTIC_TLS`), comme la
+  variante déjà offerte par `monit`.
+
 == 0.0.66 (29 octobre 2026)
 
 === Ajouté
