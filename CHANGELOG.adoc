@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.72 (30 octobre 2026)
+
+=== Ajouté
+
+* `zfs-unlock-alert` — `restart_services` : services redémarrés dans
+  l'ordre au retour à « déverrouillé » (action monit `else if succeeded`) ;
+  au démarrage du serveur, leur lancement a échoué faute de données, un
+  `start` ne suffit pas. Il ne reste qu'à lancer `beryl unlock`.
+
 == 0.0.71 (29 octobre 2026)
 
 === Ajouté

@@ -18,8 +18,13 @@ description: |
   `datasets` : datasets chiffrés à surveiller, séparés par des espaces
   (ex. `zdata` ; un pool chiffré à la racine se nomme comme le pool).
 
+  `restart_services` : services qui vivent sur ces données (base, site…),
+  REDÉMARRÉS dans l'ordre donné au retour à « déverrouillé » : au boot, leur
+  démarrage a échoué (données absentes), `start` ne suffit pas. Il ne reste
+  qu'à lancer `beryl unlock`. Vide = rien n'est redémarré.
+
     apply_recipes:
-      - zfs-unlock-alert: { datasets: zdata }
+      - zfs-unlock-alert: { datasets: zdata, restart_services: "mysql-server nginx" }
 requires:
   - monit
 parameters:
@@ -27,6 +32,10 @@ parameters:
     type: string
     default: ""
     description: Datasets chiffrés surveillés, séparés par des espaces (obligatoire).
+  restart_services:
+    type: string
+    default: ""
+    description: Services redémarrés dans l'ordre au déverrouillage (ex. `mysql-server nginx`) ; vide = aucun.
   unlock_command:
     type: string
     default: "beryl unlock {{ fqdn }}"
@@ -45,9 +54,23 @@ steps:
         #!/bin/sh
         # Géré par beryl (recette zfs-unlock-alert). `--sms` : envoie la
         # demande par SMS (action `exec` de monit, recette ovh-sms).
+        # `--restart` : redémarre les services des données déverrouillées
+        # (action `exec` de monit au retour à « déverrouillé »).
         if [ "${1:-}" = --sms ]; then
           [ -x /usr/local/sbin/ovh-sms ] || exit 0
           exec /usr/local/sbin/ovh-sms "{{ fqdn }} : donnees chiffrees verrouillees. Deverrouiller : {{ unlock_command }}"
+        fi
+        if [ "${1:-}" = --restart ]; then
+          rc=0
+          for s in {{ restart_services }}; do
+            if /usr/sbin/service "$s" restart >/dev/null 2>&1; then
+              logger -t zfs-unlock "données déverrouillées : $s redémarré"
+            else
+              logger -t zfs-unlock "données déverrouillées : ÉCHEC du redémarrage de $s"
+              rc=1
+            fi
+          done
+          exit $rc
         fi
         rc=0
         for ds in {{ datasets }}; do
@@ -84,6 +107,7 @@ steps:
         check program zfs-unlock with path "/usr/local/sbin/zfs-unlock-check.sh"
           with timeout 30 seconds
           if status != 0 then alert
+            else if succeeded then exec "/usr/local/sbin/zfs-unlock-check.sh --restart"
   # Avec la clé SMS : même contrôle, action `exec` (SMS) au passage à
   # « verrouillé ». UNE seule règle : monit envoie un mail par action
   # déclenchée (`exec` compris), une règle `alert` en plus doublerait le mail.
@@ -97,6 +121,7 @@ steps:
         check program zfs-unlock with path "/usr/local/sbin/zfs-unlock-check.sh"
           with timeout 30 seconds
           if status != 0 then exec "/usr/local/sbin/zfs-unlock-check.sh --sms"
+            else if succeeded then exec "/usr/local/sbin/zfs-unlock-check.sh --restart"
   - service-reload:
       name: monit
       if_changed: true
