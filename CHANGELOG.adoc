@@ -14,6 +14,22 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.71 (29 octobre 2026)
+
+=== Ajouté
+
+* `ovh-sms` — commande `/usr/local/sbin/ovh-sms "message"` : SMS par l'API
+  OVH (requête signée, curl + sha1 du système), avec une clé d'API DÉDIÉE
+  limitée à `POST /sms/<service>/jobs`, dans le coffre, et un expéditeur
+  déclaré (`OVH_SMS_SENDER` : sans lui, l'API accepte mais rien n'arrive).
+  Réponse d'OVH affichée ; `PATH` complet (monit lance ses `exec` sans
+  /usr/local/bin).
+* `zfs-unlock-alert` — alerte monit quand des datasets chiffrés attendent
+  leur déverrouillage (pool non importé, clé non chargée, non monté), avec
+  la commande à lancer (défaut `beryl unlock <fqdn>`). Pour les serveurs en
+  `ssh_unlock` : l'alerte part peu après chaque démarrage, par SMS aussi
+  quand la clé SMS est dans le coffre (`OVH_SMS_CONSUMER_KEY`).
+
 == 0.0.70 (29 octobre 2026)
 
 === Ajouté

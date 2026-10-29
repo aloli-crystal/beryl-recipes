@@ -1,0 +1,103 @@
+recipe: zfs-unlock-alert
+description: |
+  Alerte monit quand des données chiffrées attendent leur déverrouillage :
+  pool non importé, clé non chargée ou dataset non monté (après un
+  redémarrage, en mode `ssh_unlock` : la clé reste sur le poste de
+  l'opérateur). Le mail dit quoi lancer (`unlock_command`, défaut
+  `beryl unlock <fqdn>`).
+
+  UN MAIL = UNE ACTION : alerte au passage à « verrouillé » (donc peu après
+  chaque démarrage, monit attendant 30 s), puis « succeeded » au
+  déverrouillage. Contrôle à chaque cycle monit (une minute) : la demande
+  part tout de suite.
+
+  SMS en plus du mail quand la clé SMS d'OVH est dans le coffre
+  (`OVH_SMS_CONSUMER_KEY`, recette `ovh-sms`, à déclarer aussi) : un SMS au
+  passage à « verrouillé », en ASCII.
+
+  `datasets` : datasets chiffrés à surveiller, séparés par des espaces
+  (ex. `zdata` ; un pool chiffré à la racine se nomme comme le pool).
+
+    apply_recipes:
+      - zfs-unlock-alert: { datasets: zdata }
+requires:
+  - monit
+parameters:
+  datasets:
+    type: string
+    default: ""
+    description: Datasets chiffrés surveillés, séparés par des espaces (obligatoire).
+  unlock_command:
+    type: string
+    default: "beryl unlock {{ fqdn }}"
+    description: Commande de déverrouillage rappelée dans l'alerte.
+steps:
+  - command:
+      run: "echo 'zfs-unlock-alert : datasets obligatoire' >&2; exit 1"
+      unless: "test -n '{{ datasets }}'"
+  # exit 0 = tout est déverrouillé et monté ; exit 1 = alerte, avec la
+  # raison et la commande à lancer (reprises dans le mail de monit).
+  - file-write:
+      path: /usr/local/sbin/zfs-unlock-check.sh
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette zfs-unlock-alert). `--sms` : envoie la
+        # demande par SMS (action `exec` de monit, recette ovh-sms).
+        if [ "${1:-}" = --sms ]; then
+          [ -x /usr/local/sbin/ovh-sms ] || exit 0
+          exec /usr/local/sbin/ovh-sms "{{ fqdn }} : donnees chiffrees verrouillees. Deverrouiller : {{ unlock_command }}"
+        fi
+        rc=0
+        for ds in {{ datasets }}; do
+          pool=${ds%%/*}
+          if ! zpool list -H -o name "$pool" >/dev/null 2>&1; then
+            echo "$ds : pool $pool non importé (verrouillé)"
+            rc=1
+            continue
+          fi
+          ks=$(zfs get -H -o value keystatus "$ds" 2>/dev/null)
+          if [ "$ks" != available ]; then
+            echo "$ds : clé non chargée ($ks)"
+            rc=1
+            continue
+          fi
+          if [ "$(zfs get -H -o value mounted "$ds" 2>/dev/null)" != yes ]; then
+            echo "$ds : non monté"
+            rc=1
+          fi
+        done
+        if [ "$rc" -ne 0 ]; then
+          echo "DÉVERROUILLAGE DEMANDÉ → {{ unlock_command }}"
+        else
+          echo "OK : données déverrouillées ({{ datasets }})"
+        fi
+        exit $rc
+  - file-write:
+      path: /usr/local/etc/monit.d/zfs-unlock.conf
+      mode: "0644"
+      owner: "root:wheel"
+      unless_secret: OVH_SMS_CONSUMER_KEY
+      content: |
+        # Géré par beryl (recette zfs-unlock-alert). Inclus par monitrc.
+        check program zfs-unlock with path "/usr/local/sbin/zfs-unlock-check.sh"
+          with timeout 30 seconds
+          if status != 0 then alert
+  # Avec la clé SMS : même contrôle, action `exec` (SMS) au passage à
+  # « verrouillé ». UNE seule règle : monit envoie un mail par action
+  # déclenchée (`exec` compris), une règle `alert` en plus doublerait le mail.
+  - file-write:
+      path: /usr/local/etc/monit.d/zfs-unlock.conf
+      mode: "0644"
+      owner: "root:wheel"
+      if_secret: OVH_SMS_CONSUMER_KEY
+      content: |
+        # Géré par beryl (recette zfs-unlock-alert). Inclus par monitrc.
+        check program zfs-unlock with path "/usr/local/sbin/zfs-unlock-check.sh"
+          with timeout 30 seconds
+          if status != 0 then exec "/usr/local/sbin/zfs-unlock-check.sh --sms"
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

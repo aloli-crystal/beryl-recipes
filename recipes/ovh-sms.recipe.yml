@@ -1,0 +1,111 @@
+recipe: ovh-sms
+description: |
+  Envoi de SMS par l'API OVH (`POST /sms/<service>/jobs`) : commande
+  `/usr/local/sbin/ovh-sms "message"`, pour les alertes qui méritent plus
+  qu'un mail (ex. `zfs-unlock-alert`). Requête signée à la main (curl +
+  sha1 du système de base), sans SDK.
+
+  Clé d'API DÉDIÉE, limitée à l'envoi de SMS : jamais les clés
+  d'administration du compte (un serveur qui la lit ne peut qu'envoyer des
+  SMS ; révocable seule). Création, connecté au compte OVH :
+
+    https://eu.api.ovh.com/createToken/?POST=/sms/<service>/jobs
+
+  (durée « Unlimited »), puis dans le coffre de la société, ou par serveur
+  (`<SERVEUR>__…`) :
+
+    OVH_SMS_APPLICATION_KEY    = '…'
+    OVH_SMS_APPLICATION_SECRET = '…'
+    OVH_SMS_CONSUMER_KEY       = '…'
+    OVH_SMS_SERVICE            = 'sms-xx00000-1'
+    OVH_SMS_TO                 = '+33600000000'   # plusieurs : virgules
+    OVH_SMS_SENDER             = 'MONEXPED'       # expéditeur validé
+
+  Expéditeur : celui DÉCLARÉ et validé dans le service SMS (espace client
+  OVH, « Expéditeurs ») — sans lui, OVH envoie depuis un numéro court, que
+  l'API accepte mais qui n'est pas livré chez tous les opérateurs (constaté
+  le 29 oct. 2026). Pas de mention STOP (alerte, pas de prospection).
+  Message en ASCII de préférence (un SMS GSM ne porte pas tous les accents).
+
+  Essai, sur le serveur :  sudo /usr/local/sbin/ovh-sms "essai beryl"
+parameters:
+  endpoint:
+    type: string
+    default: "https://eu.api.ovh.com/1.0"
+    description: Point d'entrée de l'API OVH.
+  sender:
+    type: string
+    default: ""
+    from_env: OVH_SMS_SENDER
+    description: Expéditeur DÉCLARÉ et validé dans le service SMS OVH (sans lui, OVH envoie depuis un numéro court, non livré chez tous les opérateurs). Défaut = coffre.
+  service:
+    type: string
+    default: ""
+    from_env: OVH_SMS_SERVICE
+    description: Nom du service SMS OVH (sms-xx00000-1). Défaut = coffre.
+  to:
+    type: string
+    default: ""
+    from_env: OVH_SMS_TO
+    description: Destinataires, format international, séparés par des virgules. Défaut = coffre.
+steps:
+  - command:
+      run: "echo 'ovh-sms : service et to obligatoires (coffre OVH_SMS_SERVICE, OVH_SMS_TO)' >&2; exit 1"
+      unless: "test -n '{{ service }}' -a -n '{{ to }}'"
+  - pkg-install:
+      packages: [curl]
+  - secret-file:
+      path: /usr/local/etc/ovh-sms.conf
+      mode: "0600"
+      owner: "root:wheel"
+      env:
+        "@@AK@@": OVH_SMS_APPLICATION_KEY
+        "@@AS@@": OVH_SMS_APPLICATION_SECRET
+        "@@CK@@": OVH_SMS_CONSUMER_KEY
+      content: |
+        # Géré par beryl (recette ovh-sms). Clé dédiée à l'envoi de SMS.
+        OVH_SMS_AK='@@AK@@'
+        OVH_SMS_AS='@@AS@@'
+        OVH_SMS_CK='@@CK@@'
+  # Signature OVH : "$1$" + sha1(AS+CK+méthode+URL+corps+horodatage), avec
+  # l'horodatage du serveur d'API (/auth/time), pas l'horloge locale.
+  - file-write:
+      path: /usr/local/sbin/ovh-sms
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette ovh-sms). Usage : ovh-sms "message"
+        set -eu
+        # PATH complet : monit lance ses `exec` sans /usr/local/bin (curl).
+        PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
+        export PATH
+        [ $# -eq 1 ] || { echo "usage : ovh-sms \"message\"" >&2; exit 2; }
+        . /usr/local/etc/ovh-sms.conf
+        api="{{ endpoint }}"
+        url="$api/sms/{{ service }}/jobs"
+        msg=$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        rcv=""
+        for n in $(echo "{{ to }}" | tr ',' ' '); do
+          rcv="$rcv${rcv:+,}\"$n\""
+        done
+        sender="{{ sender }}"
+        if [ -n "$sender" ]; then
+          from="\"sender\":\"$sender\""
+        else
+          from="\"senderForResponse\":true"
+        fi
+        body="{\"message\":\"$msg\",\"receivers\":[$rcv],$from,\"noStopClause\":true,\"priority\":\"high\"}"
+        ts=$(curl -fsS "$api/auth/time")
+        sig="\$1\$$(printf '%s' "$OVH_SMS_AS+$OVH_SMS_CK+POST+$url+$body+$ts" | sha1 -q)"
+        # Réponse d'OVH affichée (validReceivers, invalidReceivers,
+        # totalCreditsRemoved, ou le message d'erreur) : un envoi accepté mais
+        # non livré se voit (numéro invalide, crédits épuisés).
+        curl -sS --fail-with-body -X POST \
+          -H "Content-Type: application/json" \
+          -H "X-Ovh-Application: $OVH_SMS_AK" \
+          -H "X-Ovh-Consumer: $OVH_SMS_CK" \
+          -H "X-Ovh-Timestamp: $ts" \
+          -H "X-Ovh-Signature: $sig" \
+          --data "$body" "$url"
+        echo
