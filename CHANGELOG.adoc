@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.68 (29 octobre 2026)
+
+=== Ajouté
+
+* `kvm-freebsd-guest` — second disque vierge pour l'invité
+  (`data_disk_size`, `/dev/vtbd1`, qcow2 creux), destiné à un pool de
+  données chiffré (`beryl zpool-create`, beryl >= 0.6.145). Vu par l'invité
+  au redémarrage suivant de la VM.
+* `tang-server` — `allow_extra` : adresses publiques autorisées en plus du
+  réseau privé (client Tang hors vRack, ex. une VM chez un client), insérées
+  devant le `block` déjà posé (`pf-rule before:`, beryl >= 0.6.145).
+
 == 0.0.67 (29 octobre 2026)
 
 === Ajouté

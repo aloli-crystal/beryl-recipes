@@ -25,6 +25,14 @@ description: |
   le seuil multi-Tang et le déverrouillage manuel (`beryl unlock`) couvrent
   la transition. Rotation : `tangd-rotate-keys`, à la main, hors recette.
 
+  Client HORS du réseau privé (ex. une VM chez un client, qui sort par une
+  adresse publique fixe) : `allow_extra` ajoute ces adresses (CIDR, séparées
+  par des virgules), et elles seules. Tang ne transmet aucun secret (échange
+  McCallum-Relyea), mais un Tang joignable par qui détient une copie du
+  disque la déverrouille : n'ouvrir qu'à l'adresse de sortie du client.
+  Retirer une adresse de `allow_extra` ne retire pas l'ancienne règle
+  (`pf-rule state: absent`, à la main).
+
   Supervision (inerte sans monit) : `tangd` relancé s'il tombe, alerte s'il ne
   revient pas.
 
@@ -38,6 +46,10 @@ parameters:
     type: string
     default: "{{ vrack_subnet }}"
     description: Réseau (IPv4, CIDR) autorisé à joindre Tang — le vRack. Tout le reste (IPv6 compris) est refusé sur ce port.
+  allow_extra:
+    type: string
+    default: ""
+    description: Adresses (IPv4, CIDR, séparées par des virgules) autorisées EN PLUS de `allow_from`, hors réseau privé. Vide = aucune.
   port:
     type: string
     default: "8888"
@@ -62,6 +74,12 @@ steps:
       rule: "pass in quick on lo0 proto tcp to port {{ port }}"
   - pf-rule:
       rule: "pass in quick inet proto tcp from {{ allow_from }} to port {{ port }}"
+  # Avant le `block` : à sa place sur un serveur neuf, inséré DEVANT lui sur
+  # un serveur où il est déjà posé (en fin de bloc, jamais atteint).
+  - pf-rule:
+      rule: "pass in quick inet proto tcp from { {{ allow_extra }} } to port {{ port }}"
+      before: "block in quick proto tcp to port {{ port }}"
+      if_set: "{{ allow_extra }}"
   - pf-rule:
       rule: "block in quick proto tcp to port {{ port }}"
   - service-enable:

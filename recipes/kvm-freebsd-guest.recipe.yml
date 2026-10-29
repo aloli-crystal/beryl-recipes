@@ -40,6 +40,13 @@ parameters:
     type: string
     default: "2"
     description: Processeurs virtuels de l'invité.
+  data_disk_size:
+    type: string
+    default: ""
+    description: |
+      Second disque de l'invité (`/dev/vtbd1`), VIERGE, pour un pool de
+      données (chiffré : `beryl zpool-create`). Vide = pas de second disque.
+      Créé une fois ; vu par l'invité au redémarrage suivant de la VM.
   disk_size:
     type: string
     default: 100G
@@ -120,6 +127,17 @@ steps:
         rm -rf "$work"
       unless: "test -f /var/lib/freebsd-vm/disk.qcow2"
       show_output: true
+  # Disque de données vierge (qcow2 creux : n'occupe que ce qui est écrit).
+  - command:
+      run: |
+        set -e
+        cd /var/lib/freebsd-vm
+        qemu-img create -q -f qcow2 data.qcow2.new {{ data_disk_size }}
+        chown freebsdvm:kvm data.qcow2.new
+        chmod 0640 data.qcow2.new
+        mv data.qcow2.new data.qcow2
+      unless: "test -f /var/lib/freebsd-vm/data.qcow2"
+      if_set: "{{ data_disk_size }}"
   - file-write:
       path: /var/lib/freebsd-vm/seed/meta-data
       mode: "0640"
@@ -180,6 +198,10 @@ steps:
         for f in $(echo "{{ forwards }}" | tr ',' ' '); do
           fwd="$fwd,hostfwd=$f"
         done
+        data=""
+        if [ -f /var/lib/freebsd-vm/data.qcow2 ]; then
+          data="-drive file=/var/lib/freebsd-vm/data.qcow2,if=virtio,format=qcow2,cache=none,discard=unmap"
+        fi
         exec /usr/bin/qemu-system-x86_64 \
           -name {{ hostname }} \
           -machine q35,accel=kvm \
@@ -187,6 +209,7 @@ steps:
           -smp {{ cpus }} \
           -m {{ memory }} \
           -drive file=/var/lib/freebsd-vm/disk.qcow2,if=virtio,format=qcow2,cache=none,discard=unmap \
+          $data \
           -drive file=/var/lib/freebsd-vm/seed.iso,media=cdrom,readonly=on \
           -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:{{ ssh_port }}-:22$fwd" \
           -device virtio-net-pci,netdev=net0,romfile= \
