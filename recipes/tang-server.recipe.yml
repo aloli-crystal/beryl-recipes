@@ -33,6 +33,12 @@ description: |
   Retirer une adresse de `allow_extra` ne retire pas l'ancienne règle
   (`pf-rule state: absent`, à la main).
 
+  Client dont le pare-feu ne laisse sortir que quelques ports (80, 443…) :
+  `extra_port` redirige ce port, pour les SEULES adresses `allow_extra`,
+  vers tangd (`rdr`, comme spamd). `tangd_port` ne change pas : les
+  serveurs déjà enrôlés gardent leurs URL. Le client s'enrôle avec
+  `http://<serveur>:<extra_port>`.
+
   Supervision (inerte sans monit) : `tangd` relancé s'il tombe, alerte s'il ne
   revient pas.
 
@@ -50,6 +56,10 @@ parameters:
     type: string
     default: ""
     description: Adresses (IPv4, CIDR, séparées par des virgules) autorisées EN PLUS de `allow_from`, hors réseau privé. Vide = aucune.
+  extra_port:
+    type: string
+    default: ""
+    description: Port public redirigé vers tangd pour les seules adresses `allow_extra` (ex. 80). Vide = aucune redirection.
   port:
     type: string
     default: "8888"
@@ -82,6 +92,12 @@ steps:
       if_set: "{{ allow_extra }}"
   - pf-rule:
       rule: "block in quick proto tcp to port {{ port }}"
+  # Redirection (bloc de translation) : `rdr pass` ne passe pas par les
+  # règles filtre, seule la source `allow_extra` est concernée.
+  - pf-rule:
+      nat: true
+      rule: "rdr pass inet proto tcp from { {{ allow_extra }} } to any port {{ extra_port }} -> 127.0.0.1 port {{ port }}"
+      if_set: "{{ extra_port }}"
   - service-enable:
       name: pf
       start: true
