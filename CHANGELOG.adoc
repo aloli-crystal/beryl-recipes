@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.70 (29 octobre 2026)
+
+=== Ajouté
+
+* `mariadb` — `datadir` : dossier de la base au choix (ex. `/home/mysql`),
+  posé dans `mysql_dbdir` ; `dataset` facultatif : dataset ZFS réglé pour
+  InnoDB (recordsize=16k, atime=off, lz4) monté sur `datadir`. Une base
+  existante est copiée dans le nouveau dossier (MariaDB arrêté puis
+  relancé), l'ancien dossier est conservé.
+
 == 0.0.69 (29 octobre 2026)
 
 === Ajouté

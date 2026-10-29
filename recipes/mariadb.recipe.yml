@@ -5,6 +5,29 @@ description: |
   version — l'encodage FreeBSD sans point piège un tri des noms). Par
   défaut installe `server` ET `client` ; `only: server` (ou `client`)
   pour restreindre. MariaDB s'auto-initialise au premier start.
+
+  EMPLACEMENT DE LA BASE — `datadir` (défaut `/var/db/mysql`, celui du
+  port) est posé dans `mysql_dbdir` (rc.conf), que le script rc.d passe à
+  `mariadbd-safe --datadir` et à `mariadb-install-db`. Ex. :
+      apply_recipes:
+        - mariadb: { datadir: /home/mysql }
+  Sur FreeBSD, `/home` est un lien vers `/usr/home` : rien à faire de plus.
+
+  `dataset` (facultatif, ex. `zroot/mysql`) : dataset ZFS créé et monté sur
+  `datadir`, réglé pour InnoDB (recordsize=16k = taille de page, atime=off,
+  lz4). Refusé si `datadir` existe déjà et n'est pas vide (le montage
+  masquerait son contenu) : viser un dossier neuf.
+
+  DÉPLACEMENT D'UNE BASE EXISTANTE — si le serveur a déjà une base dans
+  l'ancien dossier (`mysql_dbdir` courant, sinon `/var/db/mysql`) et que
+  `datadir` n'en a pas : MariaDB arrêté s'il tournait, base copiée
+  (`cp -Rp`), `mysql_dbdir` repointé, MariaDB relancé — coupure le temps
+  de la copie. L'ancien dossier est CONSERVÉ : à supprimer à la main après
+  vérification. Si `datadir` contient déjà une base (copie manuelle), rien
+  n'est copié : seul `mysql_dbdir` change, effectif au prochain restart.
+
+  ⚠️ `datadir` sur un dataset chiffré déverrouillé APRÈS le boot (Tang,
+  ssh_unlock) : MariaDB échoue au démarrage tant qu'il n'est pas monté.
 parameters:
   version:
     type: string
@@ -14,11 +37,55 @@ parameters:
     type: string
     default: ""
     description: "`server` ou `client` pour restreindre ; vide = les deux."
+  datadir:
+    type: string
+    default: /var/db/mysql
+    description: Dossier de la base (`mysql_dbdir`), ex. `/home/mysql`.
+  dataset:
+    type: string
+    default: ""
+    description: "Dataset ZFS à créer et monter sur `datadir` (ex. `zroot/mysql`) ; vide = simple dossier."
 steps:
   - pkg-versioned:
       base: mariadb
       version: "{{ version }}"
       only: "{{ only }}"
+  # Les gardes commencent par « pas de serveur → rien à faire » (only: client).
+  # Le mountpoint passe par realpath du parent : /home → /usr/home.
+  - command:
+      if_set: "{{ dataset }}"
+      run: |
+        set -e
+        if [ -d '{{ datadir }}' ] && [ -n "$(ls -A '{{ datadir }}')" ]; then
+          echo "refus : {{ datadir }} n'est pas vide, le montage de {{ dataset }} le masquerait" >&2; exit 1
+        fi
+        parent=$(dirname '{{ datadir }}'); mkdir -p "$parent"
+        mp="$(realpath "$parent")/$(basename '{{ datadir }}')"
+        zfs create -p -o mountpoint="$mp" -o recordsize=16k -o atime=off -o compression=lz4 '{{ dataset }}'
+        chown mysql:mysql "$mp" && chmod 0750 "$mp"
+      unless: "[ ! -x /usr/local/libexec/mariadbd ] || zfs list -H -o name '{{ dataset }}' >/dev/null 2>&1"
+  - command:
+      run: |
+        set -e
+        src=$(sysrc -n mysql_dbdir 2>/dev/null || echo /var/db/mysql)
+        up=0; service mysql-server onestatus >/dev/null 2>&1 && up=1
+        [ $up = 0 ] || service mysql-server stop
+        mkdir -p '{{ datadir }}'
+        cp -Rp "$src/." '{{ datadir }}/'
+        chown mysql:mysql '{{ datadir }}' && chmod 0750 '{{ datadir }}'
+        sysrc mysql_dbdir='{{ datadir }}'
+        [ $up = 0 ] || service mysql-server start
+        echo "base copiée de $src vers {{ datadir }} ; $src conservé (à supprimer à la main)"
+      unless: >-
+        src=$(sysrc -n mysql_dbdir 2>/dev/null || echo /var/db/mysql);
+        [ ! -x /usr/local/libexec/mariadbd ] || [ "$src" = '{{ datadir }}' ] ||
+        [ -d '{{ datadir }}/mysql' ] || [ ! -d "$src/mysql" ]
+      show_output: true
+  # Avant le start : au premier démarrage, mariadb-install-db initialise
+  # directement `datadir`.
+  - sysrc-set:
+      key: mysql_dbdir
+      value: "{{ datadir }}"
   - service-enable:
       name: mysql-server
       enable_var: mysql_enable # script mysql-server, variable mysql_enable
