@@ -32,7 +32,10 @@ description: |
   `beryl sync <serveur> zypper-patch --apply`. Les correctifs SUSE gardent
   la version de la distribution : « en attente » = « correctif publié ».
   Un redémarrage demandé par un correctif déjà installé
-  (`zypper needs-rebooting`) est signalé aussi.
+  (`zypper needs-rebooting`) est signalé aussi. Avec l'installation
+  automatique (recette `zypper-patch-timer`, timer actif), les correctifs
+  en attente ne sont plus signalés (installés la nuit suivante) ; un échec
+  de cette installation l'est.
 requires:
   - monit
 systems: [freebsd, linux]
@@ -60,6 +63,23 @@ steps:
           exit 2
         fi
         needed=$(LC_ALL=C zypper --non-interactive list-patches --category security 2>/dev/null | grep '| needed')
+        # Installation automatique (recette zypper-patch-timer) : les
+        # correctifs en attente partent la nuit suivante, seul son échec
+        # appelle une action. Échec rattrapé depuis (plus rien en attente) :
+        # état « failed » effacé, rien à signaler.
+        if systemctl is-enabled --quiet zypper-patch-auto.timer 2>/dev/null; then
+          if systemctl is-failed --quiet zypper-patch-auto.service; then
+            if [ -n "$needed" ]; then
+              echo "ÉCHEC de l'installation automatique des correctifs :"
+              journalctl -u zypper-patch-auto.service -n 5 --no-pager -o cat 2>/dev/null | sed 's/^/  /'
+              echo "→ beryl sync $host zypper-patch --apply"
+              rc=1
+            else
+              systemctl reset-failed zypper-patch-auto.service
+            fi
+          fi
+          needed=""
+        fi
         if [ -n "$needed" ]; then
           echo "correctifs de sécurité SUSE en attente :"
           echo "$needed" | awk -F'|' '{ gsub(/^ +| +$/, "", $2); print "  " $2 }'

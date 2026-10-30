@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.73 (30 octobre 2026)
+
+=== Ajouté
+
+* `zypper-patch-timer` — installation automatique, chaque nuit
+  (`on_calendar`, défaut 4 h), des correctifs de sécurité SUSE par un timer
+  systemd : un hôte Linux imposé par un tiers est corrigé avant que les
+  outils du client ne relèvent les failles. Jamais de redémarrage
+  automatique (invités coupés, déverrouillage à la main).
+
+=== Modifié
+
+* `vuln-fix-alert` (SUSE) — timer `zypper-patch-auto` actif : plus
+  d'alerte pour les correctifs en attente (installés la nuit suivante),
+  alerte sur l'échec de l'installation automatique ; un échec rattrapé
+  depuis est effacé. Le redémarrage en attente reste signalé.
+
 == 0.0.72 (30 octobre 2026)
 
 === Ajouté

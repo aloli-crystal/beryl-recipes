@@ -1,0 +1,97 @@
+recipe: zypper-patch-timer
+description: |
+  Installation AUTOMATIQUE, chaque nuit, des correctifs de sécurité d'un
+  serveur SUSE (même commande que la recette `zypper-patch`), par un timer
+  systemd. Pour un hôte Linux imposé par un tiers (porteur d'une VM
+  FreeBSD) : les failles sont corrigées avant que les outils du client ne
+  les relèvent, sans attendre l'opérateur.
+
+  Le REDÉMARRAGE n'est jamais automatique : il coupe les invités (et un
+  invité chiffré attend son déverrouillage à la main). Un correctif qui
+  l'exige est installé, puis `vuln-fix-alert` signale le redémarrage en
+  attente.
+
+  Avec ce timer actif, `vuln-fix-alert` ne signale plus les correctifs en
+  attente (installés la nuit suivante), seulement :
+    - un échec de l'installation automatique (unité en échec) ;
+    - un redémarrage en attente.
+
+  Journal : `journalctl -u zypper-patch-auto` (détail de zypper dans
+  /var/log/zypper-patch-auto.log, la dernière nuit seulement).
+
+    apply_recipes:
+      - zypper-patch-timer: { on_calendar: "*-*-* 04:00" }
+systems: [linux]
+parameters:
+  on_calendar:
+    type: string
+    default: "*-*-* 04:00"
+    description: Heure de l'installation, au format OnCalendar de systemd (défaut chaque nuit à 4 h, heure du serveur).
+steps:
+  - file-write:
+      path: /usr/local/sbin/zypper-patch-auto
+      mode: "0755"
+      owner: "root:root"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette zypper-patch-timer). Lancé par
+        # zypper-patch-auto.timer. Code 0 = rien à faire ou correctifs
+        # installés (redémarrage éventuel signalé par vuln-fix-alert) ;
+        # autre = échec, l'unité passe « failed ».
+        set -u
+        log=/var/log/zypper-patch-auto.log
+        : > "$log"
+        patch() {
+          LC_ALL=C zypper --non-interactive patch --category security --with-interactive \
+            --auto-agree-with-licenses --no-recommends >>"$log" 2>&1
+        }
+        # 7 = zypper verrouillé (autre zypper en cours) : trois essais.
+        # 103 = zypper s'est mis à jour lui-même : on relance une fois.
+        tries=0
+        while :; do
+          rc=0
+          patch || rc=$?
+          [ "$rc" -eq 103 ] && { rc=0; patch || rc=$?; }
+          [ "$rc" -eq 7 ] && [ "$tries" -lt 3 ] || break
+          tries=$((tries + 1))
+          sleep 60
+        done
+        case "$rc" in
+          0) echo "correctifs de sécurité : à jour" ;;
+          102) echo "correctifs de sécurité installés — REDÉMARRAGE NÉCESSAIRE (à planifier)" ;;
+          *) echo "ÉCHEC de zypper patch (code $rc), voir $log"; tail -n 5 "$log"; exit "$rc" ;;
+        esac
+  - file-write:
+      path: /etc/systemd/system/zypper-patch-auto.service
+      mode: "0644"
+      owner: "root:root"
+      content: |
+        # Géré par beryl (recette zypper-patch-timer).
+        [Unit]
+        Description=Correctifs de sécurité SUSE (zypper patch)
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/zypper-patch-auto
+  - file-write:
+      path: /etc/systemd/system/zypper-patch-auto.timer
+      mode: "0644"
+      owner: "root:root"
+      content: |
+        # Géré par beryl (recette zypper-patch-timer).
+        [Unit]
+        Description=Correctifs de sécurité SUSE chaque nuit
+
+        [Timer]
+        OnCalendar={{ on_calendar }}
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  - command:
+      run: systemctl daemon-reload
+      if_changed: true
+  - service-enable:
+      name: zypper-patch-auto.timer
