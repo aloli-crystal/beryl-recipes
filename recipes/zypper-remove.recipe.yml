@@ -1,0 +1,54 @@
+recipe: zypper-remove
+description: |
+  Retire des paquets d'un serveur SUSE et les VERROUILLE (`zypper addlock`)
+  pour qu'aucune installation ou mise à jour ne les ramène. Sert à réduire
+  la surface d'un hôte Linux imposé par un tiers (porteur d'une VM
+  FreeBSD) : moins de paquets, moins de failles à corriger, moins
+  d'alertes chez le client.
+
+  Garde-fou : la liste doit être COMPLÈTE. Si un paquet non listé dépend
+  d'un paquet à retirer, rien n'est retiré (`rpm -e --test`) et le compte
+  rendu nomme le paquet qui en dépend, à ajouter à la liste (ou à garder).
+  Jamais de `--clean-deps` : zypper retirerait aussi des dépendances
+  devenues « inutiles » à ses yeux (ex. apparmor-parser, bibliothèques
+  partagées), sans qu'on les ait choisies.
+
+  Simulation conseillée avant la première fois, sur le serveur :
+    sudo zypper --non-interactive remove --dry-run <paquets>
+
+    apply_recipes:
+      - zypper-remove: { packages: "docker containerd runc cups cups-client" }
+systems: [linux]
+parameters:
+  packages:
+    type: string
+    default: ""
+    description: Paquets à retirer et verrouiller, séparés par des espaces (obligatoire).
+steps:
+  - command:
+      run: "echo 'zypper-remove : packages obligatoire' >&2; exit 1"
+      unless: "test -n '{{ packages }}'"
+  - command:
+      run: |
+        present=""
+        for p in {{ packages }}; do
+          rpm -q --quiet "$p" && present="$present $p"
+        done
+        if ! out=$(rpm -e --test $present 2>&1); then
+          echo "zypper-remove : RIEN n'est retiré, des paquets non listés en dépendent :"
+          echo "$out" | sed 's/^/  /'
+          exit 1
+        fi
+        LC_ALL=C zypper --non-interactive remove --no-clean-deps $present 2>&1 | tail -n 3
+        echo "retirés :$present"
+      unless: "for p in {{ packages }}; do rpm -q --quiet \"$p\" && exit 1; done; exit 0"
+      show_output: true
+  - command:
+      run: |
+        locked=$(LC_ALL=C zypper --non-interactive locks 2>/dev/null)
+        for p in {{ packages }}; do
+          echo "$locked" | grep -q "| $p " || zypper --non-interactive --quiet addlock "$p"
+        done
+        echo "verrouillés : {{ packages }}"
+      unless: "locked=$(LC_ALL=C zypper --non-interactive locks 2>/dev/null); for p in {{ packages }}; do echo \"$locked\" | grep -q \"| $p \" || exit 1; done; exit 0"
+      show_output: true

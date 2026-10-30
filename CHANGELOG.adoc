@@ -14,6 +14,15 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.74 (30 octobre 2026)
+
+=== Ajouté
+
+* `zypper-remove` — retire des paquets d'un serveur SUSE et les verrouille
+  (`zypper addlock`) : surface réduite d'un hôte Linux porteur. Liste
+  complète exigée (`rpm -e --test` : un paquet non listé qui en dépend
+  bloque tout, nommé dans le compte rendu) ; jamais de `--clean-deps`.
+
 == 0.0.73 (30 octobre 2026)
 
 === Ajouté
