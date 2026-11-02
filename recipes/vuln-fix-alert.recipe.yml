@@ -126,15 +126,18 @@ steps:
           exit 2
         fi
 
-        # Paquets logiciels : vulnérable ET mise à jour disponible.
+        # Paquets logiciels : vulnérable ET mise à jour disponible ET cette
+        # mise à jour n'est plus vulnérable elle-même. Sans ce dernier test,
+        # une simple recompilation (openssl111 1.1.1w_2 → 1.1.1w_3, branche
+        # sans suivi) passait pour un correctif.
         pending=$(pkg upgrade -nU 2>/dev/null | awk '/ -> / && $NF != "[FreeBSD-base]" { sub(/:$/, "", $1); print $1, $2, $4 }')
         for v in $vulns; do
           name=${v%-*}
-          fix=$(echo "$pending" | awk -v n="$name" '$1 == n { print $2 " → " $3 }')
-          if [ -n "$fix" ]; then
-            echo "$name $fix corrige une faille"
-            rc=1
-          fi
+          new=$(echo "$pending" | awk -v n="$name" '$1 == n { print $3 }')
+          [ -n "$new" ] || continue
+          [ -z "$(pkg audit -q "$name-$new" 2>/dev/null)" ] || continue
+          echo "$name ${v##*-} → $new corrige une faille"
+          rc=1
         done
         if [ $rc -eq 1 ]; then
           echo "→ beryl upgrade $host --apply"

@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.75 (2 novembre 2026)
+
+=== Corrigé
+
+* `vuln-fix-alert` — un paquet n'est plus annoncé « corrigé » quand sa
+  mise à jour est elle-même vulnérable (`pkg audit` de la nouvelle
+  version). Une recompilation d'une branche sans suivi (`openssl111
+  1.1.1w_2 → 1.1.1w_3`, quimeo-twin-bsd) déclenchait une alerte dont la
+  commande ne corrigeait rien.
+
+=== Modifié
+
+* `root-password-lock` — paramètre `users` (défaut `root toor`) : d'autres
+  comptes à verrouiller, ex. `admin` d'une VM créée depuis l'image cloud
+  de FreeBSD, que nuageinit laisse sans mot de passe (rapport « Checking
+  for passwordless accounts », quimeo-twin-bsd).
+
 == 0.0.74 (30 octobre 2026)
 
 === Ajouté
