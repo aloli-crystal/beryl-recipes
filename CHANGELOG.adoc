@@ -14,6 +14,23 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.76 (2 novembre 2026)
+
+=== Ajouté
+
+* `journald-persistent` — journal de systemd conservé d'un démarrage à
+  l'autre (`Storage=persistent`, plafond `max_use`, défaut 500M). Une image
+  cloud SUSE le garde en mémoire : après un redémarrage commandé de
+  l'extérieur (quimeo-twin, 2 nov. 2026 à 01h13), impossible de savoir qui
+  l'avait demandé.
+
+=== Corrigé
+
+* `zypper-patch-timer` — l'étape `systemctl daemon-reload` n'avait pas de
+  garde `unless` (obligatoire pour `command`) : elle échouait et arrêtait
+  la recette avant `service-enable`. Le timer n'était donc jamais activé
+  (quimeo-twin, 30 oct. 2026). Garde : `NeedDaemonReload` des deux unités.
+
 == 0.0.75 (2 novembre 2026)
 
 === Corrigé

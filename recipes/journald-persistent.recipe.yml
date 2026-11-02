@@ -1,0 +1,38 @@
+recipe: journald-persistent
+description: |
+  Journal de systemd CONSERVÉ d'un démarrage à l'autre (`Storage=persistent`,
+  dans /var/log/journal), avec un plafond de place (`max_use`).
+
+  POURQUOI : une image cloud SUSE garde le journal en mémoire seulement
+  (`Storage=auto` sans /var/log/journal). Après un redémarrage, tout ce qui
+  l'a précédé est perdu : impossible de savoir QUI a commandé l'arrêt
+  (quimeo-twin, 2 nov. 2026 à 01h13 : arrêt propre, origine inconnue).
+  Ensuite : `journalctl --list-boots`, puis `journalctl -b -1 -n 50` (fin du
+  démarrage précédent).
+
+  journald est relancé quand sa configuration est plus récente que lui
+  (première fois, ou `max_use` modifié) ; il reprend aussitôt, sans perte.
+
+    apply_recipes:
+      - journald-persistent: { max_use: 1G }
+systems: [linux]
+parameters:
+  max_use:
+    type: string
+    default: 500M
+    description: Place maximale du journal sur disque (`SystemMaxUse` de journald.conf, ex. 500M, 1G).
+steps:
+  - file-write:
+      path: /etc/systemd/journald.conf.d/beryl-persistent.conf
+      mode: "0644"
+      owner: "root:root"
+      content: |
+        # Géré par beryl (recette journald-persistent).
+        [Journal]
+        Storage=persistent
+        SystemMaxUse={{ max_use }}
+  - command:
+      run: systemctl restart systemd-journald
+      unless: >-
+        test "$(stat -c %Y /etc/systemd/journald.conf.d/beryl-persistent.conf)"
+        -lt "$(date -d "$(systemctl show -p ActiveEnterTimestamp --value systemd-journald)" +%s)"

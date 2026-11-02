@@ -90,8 +90,10 @@ steps:
 
         [Install]
         WantedBy=timers.target
+  # Garde obligatoire de `command` (sans elle, l'étape échouait et le timer
+  # n'était jamais activé).
   - command:
       run: systemctl daemon-reload
-      if_changed: true
+      unless: "! systemctl show -p NeedDaemonReload --value zypper-patch-auto.timer zypper-patch-auto.service 2>/dev/null | grep -qx yes"
   - service-enable:
       name: zypper-patch-auto.timer
