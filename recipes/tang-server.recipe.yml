@@ -116,6 +116,7 @@ steps:
           start program = "/usr/sbin/service tangd start"
           stop program  = "/usr/sbin/service tangd stop"
           if failed host 127.0.0.1 port {{ port }} protocol http request "/adv" for 3 cycles then restart
+            else if succeeded then exec "/usr/bin/true"
           if 3 restarts within 5 cycles then unmonitor
   - service-reload:
       name: monit

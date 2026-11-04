@@ -14,6 +14,20 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.77 (4 novembre 2026)
+
+=== Corrigé
+
+* Plus de mail de RÉTABLISSEMENT de monit (« Status succeeded »,
+  « Connection succeeded »…) : il n'appelle aucune action (règle « un mail
+  = une action »). Chaque test `then alert` / `then restart` porte
+  désormais `else if succeeded then exec "/usr/bin/true"`, qui remplace le
+  mail envoyé par défaut au retour à la normale (`else ignore` exige
+  monit 5.34, SUSE a la 5.26). Recettes : `db-dump-signed`,
+  `distfiles-mirror`, `monit`, `pkg-mirror`, `poudriere-nginx`,
+  `static-site-https`, `tang-server`, `twin-push`, `unbound-vrack`,
+  `vuln-fix-alert`, `zfs-scrub`.
+
 == 0.0.76 (2 novembre 2026)
 
 === Ajouté

@@ -61,6 +61,7 @@ steps:
           start program = "/usr/sbin/service unbound start"
           stop program  = "/usr/sbin/service unbound stop"
           if failed host {{ vrack_ip }} port 53 type tcp for 3 cycles then restart
+            else if succeeded then exec "/usr/bin/true"
           if 3 restarts within 5 cycles then unmonitor
   - service-reload:
       name: monit

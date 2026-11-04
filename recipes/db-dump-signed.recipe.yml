@@ -211,6 +211,7 @@ steps:
         # Géré par beryl (recette db-dump-signed).
         check file twin-dump-{{ name }} with path /var/db/twin/{{ name }}/state/last_success
           if timestamp > {{ alert_hours }} hours then alert
+            else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true

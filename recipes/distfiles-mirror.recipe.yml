@@ -61,6 +61,7 @@ steps:
         # Géré par beryl (recette distfiles-mirror).
         check file distfiles-mirror with path /var/db/distfiles-mirror.last
           if timestamp > 2 days then alert
+            else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true

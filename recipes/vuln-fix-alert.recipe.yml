@@ -176,7 +176,9 @@ steps:
           with timeout 600 seconds
           every "{{ check_schedule }}"
           if status = 1 then alert
+            else if succeeded then exec "/usr/bin/true"
           if status > 1 for 2 cycles then alert
+            else if succeeded then exec "/usr/bin/true"
 
   - service-reload:
       name: monit

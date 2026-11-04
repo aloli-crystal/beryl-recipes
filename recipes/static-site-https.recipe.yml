@@ -170,6 +170,7 @@ steps:
           if failed port 443 protocol https
              and certificate valid > 14 days
              for 7 cycles then alert
+               else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true

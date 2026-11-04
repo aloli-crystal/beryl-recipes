@@ -87,6 +87,7 @@ steps:
         check program zfs-health with path "/usr/local/sbin/zfs-health.sh"
           every "{{ check_schedule }}"
           if status != 0 then alert
+            else if succeeded then exec "/usr/bin/true"
 
   # monit relit sa conf → prend en compte le nouveau check tout de suite.
   - service-reload:

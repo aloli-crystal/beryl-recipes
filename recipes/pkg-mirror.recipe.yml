@@ -74,6 +74,7 @@ steps:
         # Géré par beryl (recette pkg-mirror).
         check file pkg-mirror with path /var/db/pkg-mirror.last
           if timestamp > 2 hours then alert
+            else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true
