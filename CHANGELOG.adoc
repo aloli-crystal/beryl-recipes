@@ -14,6 +14,21 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.78 (4 novembre 2026)
+
+=== Corrigé
+
+* `tang-server`, `unbound-vrack` : plus de mail quand monit relance le
+  service, il répare seul (`noalert` sur le contrôle du processus). Le seul
+  mail : un contrôle à part (`tangd-adv`, `unbound-vrack`) qui alerte si le
+  service ne répond TOUJOURS pas après 10 contrôles, relances comprises →
+  intervention. Paramètre `alert_email` (coffre `SMTP_RELAY_TO`, comme
+  `monit`).
+* `monit` : les alertes `timestamp` (dernier succès trop ancien de
+  `db-dump-signed`, `twin-push`, `pkg-mirror`, `distfiles-mirror`) n'étaient
+  JAMAIS envoyées — type d'événement absent de la liste blanche depuis
+  0.0.41. Ajouté, catégorie « dernier succès trop ancien ».
+
 == 0.0.77 (4 novembre 2026)
 
 === Corrigé

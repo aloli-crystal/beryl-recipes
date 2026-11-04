@@ -48,6 +48,11 @@ description: |
 requires:
   - monit
 parameters:
+  alert_email:
+    type: string
+    default: ""
+    from_env: SMTP_RELAY_TO
+    description: Destination des alertes de monit (la même que la recette `monit`) — les relances de tangd ne lui sont pas signalées.
   allow_from:
     type: string
     default: "{{ vrack_subnet }}"
@@ -116,8 +121,14 @@ steps:
           start program = "/usr/sbin/service tangd start"
           stop program  = "/usr/sbin/service tangd stop"
           if failed host 127.0.0.1 port {{ port }} protocol http request "/adv" for 3 cycles then restart
-            else if succeeded then exec "/usr/bin/true"
           if 3 restarts within 5 cycles then unmonitor
+          # Relances SANS mail : monit répare seul, rien à faire.
+          noalert {{ alert_email }}
+        # Le seul mail : tangd ne répond toujours pas après les relances
+        # (10 contrôles, ~10 min) → intervention.
+        check host tangd-adv with address 127.0.0.1
+          if failed port {{ port }} protocol http request "/adv" for 10 cycles then alert
+            else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true

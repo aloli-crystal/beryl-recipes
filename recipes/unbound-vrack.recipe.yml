@@ -22,6 +22,11 @@ requires:
   - monit
   - vrack-interface
 parameters:
+  alert_email:
+    type: string
+    default: ""
+    from_env: SMTP_RELAY_TO
+    description: Destination des alertes de monit (la même que la recette `monit`) — les relances d'unbound ne lui sont pas signalées.
   allow_from:
     type: string
     default: "{{ vrack_subnet }}"
@@ -61,8 +66,14 @@ steps:
           start program = "/usr/sbin/service unbound start"
           stop program  = "/usr/sbin/service unbound stop"
           if failed host {{ vrack_ip }} port 53 type tcp for 3 cycles then restart
-            else if succeeded then exec "/usr/bin/true"
           if 3 restarts within 5 cycles then unmonitor
+          # Relances SANS mail : monit répare seul, rien à faire.
+          noalert {{ alert_email }}
+        # Le seul mail : unbound ne répond toujours pas après les relances
+        # (10 contrôles, ~10 min) → intervention.
+        check host unbound-vrack with address {{ vrack_ip }}
+          if failed port 53 type tcp for 10 cycles then alert
+            else if succeeded then exec "/usr/bin/true"
   - service-reload:
       name: monit
       if_changed: true

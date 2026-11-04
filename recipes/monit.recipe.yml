@@ -221,6 +221,25 @@ steps:
         Détail (monit, en anglais) :
         $DESCRIPTION
         }
+        # timestamp = fichier témoin trop vieux : sauvegarde, envoi au jumeau
+        # ou miroir qui n'a plus réussi (db-dump-signed, twin-push,
+        # pkg-mirror, distfiles-mirror).
+        set alert {{ alert_email }} on { timestamp } with mail-format {
+          from:    @@USER@@
+          subject: [monit][{{ fqdn }}] $SERVICE · dernier succès trop ancien · $EVENT
+          message: [monit][{{ fqdn }}] $SERVICE · dernier succès trop ancien · $EVENT
+
+        Serveur    : {{ fqdn }}
+        Service    : $SERVICE
+        Événement  : $EVENT
+        Action     : $ACTION
+        Date       : $DATE
+
+        La tâche n'a plus réussi depuis le délai prévu : voir son journal.
+
+        Détail (monit, en anglais) :
+        $DESCRIPTION
+        }
         # timeout = « N relances en M contrôles » atteint (monit abandonne) ;
         # exec = le script de démarrage/arrêt ou la sonde n'a pas pu s'exécuter.
         set alert {{ alert_email }} on { timeout, exec } with mail-format {
