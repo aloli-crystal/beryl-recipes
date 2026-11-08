@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.79 (8 novembre 2026)
+
+=== Ajouté
+
+* `quarterly-rollover-watch` — veilleur de bascule trimestrielle FreeBSD pour
+  un builder poudriere en suivi *quarterly*. Un script compare la branche
+  réelle de l'arbre de ports (via git) au trimestre courant et vérifie côté
+  `git.freebsd.org` que la nouvelle branche `YYYYQN` existe ; si le builder est
+  en retard → alerte monit (« repointer l'arbre + rebuild »). Auto-réarmé après
+  la bascule, silencieux si l'arbre suit HEAD. `requires: monit` ; contrôle
+  quotidien par défaut (`check_schedule`, `ports_dir`).
+
 == 0.0.78 (4 novembre 2026)
 
 === Corrigé

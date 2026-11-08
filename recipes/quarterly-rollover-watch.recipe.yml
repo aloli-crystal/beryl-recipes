@@ -1,0 +1,70 @@
+recipe: quarterly-rollover-watch
+description: |
+  Prévient par email (via monit) quand un NOUVEAU trimestriel FreeBSD (branche
+  `YYYYQN`) est disponible alors que l'arbre de ports du builder poudriere est
+  encore sur un trimestre précédent — le signal pour repointer l'arbre + rebuild.
+
+  Pour un parc en suivi *quarterly* (versions figées par trimestre), le geste de
+  montée est GLOBAL et trimestriel : ce veilleur ne dit pas « tel port a bougé »,
+  il dit seulement QUAND basculer. UN MAIL = UNE ACTION (repointer + rebuild).
+
+  Fonctionnement, sans toucher à la config poudriere : lit la branche RÉELLE de
+  l'arbre via git, la compare au trimestre courant (calculé depuis la date), et
+  vérifie côté FreeBSD que cette branche existe déjà. Si le builder est en retard
+  → monit alerte (exit 1). Auto-réarmé : plus d'alerte une fois l'arbre repointé
+  + rebuild (`CUR == trimestre courant`). Silencieux si l'arbre suit HEAD
+  (non-quarterly) ou si le trimestre n'est pas encore coupé.
+
+  Réseau : le contrôle interroge `git.freebsd.org`, déjà joint par poudriere pour
+  son arbre `git+https`. `requires: monit` pour l'acheminement de l'alerte.
+requires:
+  - monit
+parameters:
+  check_schedule:
+    type: string
+    default: "0 7 * * *"
+    description: Cron monit du contrôle (défaut quotidien 07h00).
+  ports_dir:
+    type: string
+    default: /usr/local/poudriere/ports/default
+    description: Arbre de ports poudriere à surveiller.
+steps:
+  - file-write:
+      path: /usr/local/sbin/beryl-quarterly-rollover-check
+      mode: "0755"
+      owner: "root:wheel"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette quarterly-rollover-watch). Détecte qu'un NOUVEAU
+        # trimestriel FreeBSD (branche YYYYQN) est dispo alors que l'arbre de ports
+        # du builder est encore sur un trimestre antérieur. exit 0 = rien à faire ;
+        # exit 1 = bascule à faire (monit alerte avec le message ci-dessous).
+        set -u
+        PORTSDIR="${1:-/usr/local/poudriere/ports/default}"
+        NOW="$(date +%Y)Q$(( ($(date +%m) - 1) / 3 + 1 ))"
+        CUR=$(git -C "$PORTSDIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
+        case "$CUR" in
+          [0-9][0-9][0-9][0-9]Q[1-4]) : ;;                      # arbre en quarterly → on surveille
+          *) echo "arbre non-quarterly ($CUR) — rien à surveiller"; exit 0 ;;
+        esac
+        [ "$CUR" = "$NOW" ] && { echo "à jour : $CUR"; exit 0; }
+        if git ls-remote --exit-code --heads https://git.freebsd.org/ports.git "$NOW" >/dev/null 2>&1; then
+          echo "Nouveau trimestriel FreeBSD $NOW (builder encore sur $CUR) : repointer l'arbre poudriere sur $NOW, poudriere ports -u, puis rebuild de la pkglist (+ os-upgrade mineure si dispo)."
+          exit 1
+        fi
+        echo "trimestre $NOW pas encore coupé — on attend"
+        exit 0
+  - file-write:
+      path: /usr/local/etc/monit.d/quarterly-rollover.conf
+      mode: "0644"
+      owner: "root:wheel"
+      content: |
+        # Géré par beryl (recette quarterly-rollover-watch). Inclus par monitrc.
+        check program quarterly-rollover with path "/usr/local/sbin/beryl-quarterly-rollover-check {{ ports_dir }}"
+          every "{{ check_schedule }}"
+          if status != 0 then alert
+  # monit relit sa conf → prend en compte le nouveau check tout de suite.
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true
