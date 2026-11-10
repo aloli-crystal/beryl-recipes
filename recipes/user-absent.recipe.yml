@@ -9,6 +9,11 @@ description: |
   GARDE-FOU : refus pour root, pour le compte par lequel beryl se connecte
   (`{{ connect_user }}`), et pour tout UID < 1000 (comptes système).
   Les processus du compte sont arrêtés d'abord (`pkill -u`).
+
+  Son fichier sudoers à son nom (`sudoers.d/<nom>`, celui de la recette
+  `sudo-user`) est retiré aussi : laissé en place, il redonnerait sudo à un
+  compte recréé plus tard sous le même nom. Les autres règles sudo (groupe,
+  fichier commun) ne sont pas touchées.
 systems: [freebsd, linux]
 parameters:
   name:
@@ -32,3 +37,10 @@ steps:
         echo "{{ name }} : compte supprimé"
       unless: "! id -u '{{ name }}' >/dev/null 2>&1"
       show_output: true
+  # Le garde-fou ci-dessus a déjà refusé root, beryl et les comptes système.
+  - file-absent:
+      path: "/etc/sudoers.d/{{ name }}"
+      systems: linux
+  - file-absent:
+      path: "/usr/local/etc/sudoers.d/{{ name }}"
+      systems: freebsd
