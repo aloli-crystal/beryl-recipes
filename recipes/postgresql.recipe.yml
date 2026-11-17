@@ -29,6 +29,14 @@ description: |
   secondes ; le cluster (`/var/db/postgres/data<NN>`) n'est pas touché. Si
   un paquet dépend du serveur officiel (extension compilée contre lui),
   la bascule est REFUSÉE et ces paquets sont nommés.
+
+  ÉCOUTE — `listen_addresses` (défaut `localhost`, celui de PostgreSQL).
+  Vide (`listen_addresses: ""`) : AUCUN port TCP, socket Unix seulement
+  (`/tmp/.s.PGSQL.5432`) — pour des applications qui s'y connectent toutes
+  (`postgres:///base?host=/tmp`). Posé par `ALTER SYSTEM`
+  (`postgresql.auto.conf` du cluster, prioritaire sur `postgresql.conf`) ;
+  un changement redémarre PostgreSQL (coupure de quelques secondes, les
+  connexions en cours sont fermées).
 parameters:
   version:
     type: string
@@ -44,6 +52,10 @@ parameters:
     description: >-
       Flags passés à `initdb` via `postgresql_initdb_flags`. Défaut =
       défaut FreeBSD + `--data-checksums` (détection de corruption de page).
+  listen_addresses:
+    type: string
+    default: localhost
+    description: "Adresses TCP d'écoute ; vide = socket Unix seulement, aucun port ouvert. Changement → PostgreSQL redémarré."
   server_package:
     type: string
     default: ""
@@ -80,3 +92,15 @@ steps:
       name: postgresql
       start: true
       if_present: true # only: client → pas de serveur → skippé
+  # Écoute (`listen_addresses`), après le démarrage : ALTER SYSTEM demande un
+  # serveur en marche. Sautée sans serveur (only: client) ou si la valeur
+  # est déjà en place. Redémarrage : listen_addresses n'est lu qu'au start.
+  - command:
+      run: >-
+        su -l postgres -c "psql -XAqc \"ALTER SYSTEM SET listen_addresses = '{{ listen_addresses }}'\"" &&
+        service postgresql restart &&
+        echo "listen_addresses = '{{ listen_addresses }}' — PostgreSQL relancé"
+      unless: >-
+        ! service postgresql onestatus >/dev/null 2>&1 ||
+        [ "$(su -l postgres -c 'psql -XAtc "SHOW listen_addresses"')" = '{{ listen_addresses }}' ]
+      show_output: true
