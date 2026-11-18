@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.84 (18 novembre 2026)
+
+=== Corrigé
+
+* `tang-client` — zroot chiffré (`profile: standard`) : /usr/local/etc
+  fermé au moment où /etc/rc dresse la liste des scripts de paquets, ni
+  `clevis_zfs` ni aucun service de paquet ne démarrait (déverrouillage
+  automatique impossible). Le script est copié dans /etc/rc.d et
+  `early_late_divider="clevis_zfs"` posé : déverrouillage par Tang, puis
+  démarrage normal des services. Sans effet sur un zroot en clair.
+
 == 0.0.83 (18 novembre 2026)
 
 === Modifié

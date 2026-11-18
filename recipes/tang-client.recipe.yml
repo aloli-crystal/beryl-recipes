@@ -15,14 +15,39 @@ description: |
     1. bloc `encryption:` (mode tang, urls, threshold) sur le pool dans la
        fiche du host ;
     2. `beryl bootstrap` : pool chiffré, clé locale sur le poste ;
-    3. `beryl sync` (cette recette) ;
-    4. `beryl tang-enroll <host> --apply` ;
+    3. `beryl unlock <host> --apply` puis `beryl sync <host> --apply`
+       (cette recette) ;
+    4. `beryl tang-enroll <host> --apply` — enchaîné par le `sync` depuis
+       beryl 0.6.165 ;
     5. reboot de contrôle : le pool doit revenir monté seul.
 
   Les Tang doivent être joignables AU DÉMARRAGE (vRack posé par
   `vrack-interface` avant le script rc.d, qui suit NETWORKING). Si trop de
   Tang manquent, le pool reste verrouillé : `beryl unlock <host>` (clé du
   poste) prend le relais.
+
+  ZROOT CHIFFRÉ (`profile: standard`, /usr/local/etc sous
+  `<pool>/encrypted`) : au démarrage, /etc/rc dresse la liste des scripts
+  de /usr/local/etc/rc.d une seule fois, juste après `early_late_divider`
+  (FILESYSTEMS) — /usr/local/etc est alors fermé : ni `clevis_zfs` ni
+  aucun service de paquet ne démarrerait. La recette copie donc le script
+  dans /etc/rc.d (sur `/`, en clair) et pose
+  `early_late_divider="clevis_zfs"` (rc.conf(5) : /usr/local monté tard) :
+  réseau, puis déverrouillage par Tang, PUIS la liste des scripts, services
+  de paquets compris. La copie suit le paquet à chaque `sync` ; le second
+  passage du script du paquet ne fait rien (« key already loaded »).
+  Tang injoignable au démarrage : `beryl unlock`, puis relancer les
+  services (`freebsd.after_unlock`, ou `service -R`).
 steps:
   - pkg-install:
       packages: [clevis-zfs]
+  - command:
+      run: |
+        install -m 0555 -o root -g wheel /usr/local/etc/rc.d/clevis_zfs /etc/rc.d/clevis_zfs &&
+        sysrc early_late_divider=clevis_zfs
+      unless: >-
+        pool=$(kenv -q vfs.root.mountfrom | sed 's,^zfs:,,;s,/.*,,');
+        ! zfs list -H -o name "$pool/encrypted" >/dev/null 2>&1 ||
+        { cmp -s /usr/local/etc/rc.d/clevis_zfs /etc/rc.d/clevis_zfs &&
+          [ "$(sysrc -n early_late_divider)" = clevis_zfs ]; }
+      show_output: true
