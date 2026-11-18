@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.83 (18 novembre 2026)
+
+=== Modifié
+
+* `tang-server` — sur un serveur au zroot chiffré (`profile: standard`),
+  `/var/db/tang` devient un dataset chiffré (`<pool>/encrypted/tang`, clé
+  du serveur) : un disque volé n'emporte plus les clés de Tang. Clés déjà
+  posées en clair : déplacées dedans, jamais régénérées. Clé du serveur non
+  chargée : échec (pas de clés créées en clair à côté). zroot clair : rien.
+
 == 0.0.82 (18 novembre 2026)
 
 === Modifié

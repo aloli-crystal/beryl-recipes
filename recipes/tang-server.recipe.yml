@@ -24,6 +24,9 @@ description: |
   serveurs qui l'utilisaient doivent être ré-enrôlés (`beryl tang-enroll`) —
   le seuil multi-Tang et le déverrouillage manuel (`beryl unlock`) couvrent
   la transition. Rotation : `tangd-rotate-keys`, à la main, hors recette.
+  Serveur au zroot chiffré (`profile: standard`) : `/var/db/tang` est un
+  dataset chiffré (`<pool>/encrypted/tang`), clés existantes déplacées
+  dedans ; tangd ne sert qu'après `beryl unlock`.
 
   Client HORS du réseau privé (ex. une VM chez un client, qui sort par une
   adresse publique fixe) : `allow_extra` ajoute ces adresses (CIDR, séparées
@@ -72,6 +75,43 @@ parameters:
 steps:
   - pkg-install:
       packages: [tang]
+  # Clés à l'abri sur un serveur au zroot chiffré (`profile: standard`) :
+  # dataset `<pool>/encrypted/tang` monté sur /var/db/tang, qui hérite de la
+  # clé du serveur. Un disque volé n'emporte pas les clés de Tang (avec
+  # celles d'un 2ᵉ Tang et le disque d'un client, de quoi le déchiffrer).
+  # Sans coût : tangd ne démarre de toute façon qu'après `beryl unlock`
+  # (rc.d dans /usr/local/etc). Clés déjà posées EN CLAIR : déplacées dans
+  # le dataset, JAMAIS régénérées (les serveurs enrôlés casseraient). Clé du
+  # serveur non chargée : ÉCHEC, pour que `tangd-keygen` ne crée jamais de
+  # clés en clair à côté. zroot clair : rien.
+  - command:
+      run: |
+        pool=$(kenv -q vfs.root.mountfrom | sed 's,^zfs:,,;s,/.*,,')
+        er="$pool/encrypted"; ds="$er/tang"; dir=/var/db/tang
+        if [ "$(zfs get -H -o value keystatus "$er")" != available ]; then
+          echo "ÉCHEC : $er verrouillé — beryl unlock d'abord ; /var/db/tang non créé"
+          exit 1
+        fi
+        old=""
+        if ls "$dir"/*.jwk >/dev/null 2>&1; then
+          old="$dir.clair.$$"
+          service tangd onestop >/dev/null 2>&1
+          mv "$dir" "$old"
+        fi
+        zfs create -o mountpoint="$dir" "$ds" || exit 1
+        chmod 0700 "$dir"
+        if [ -n "$old" ]; then
+          cp -p "$old"/*.jwk "$dir"/ && rm -rf "$old" || exit 1
+          service tangd onestatus >/dev/null 2>&1 || service tangd start >/dev/null 2>&1
+          echo "clés Tang déplacées dans $ds (chiffré)"
+        else
+          echo "$ds créé (chiffré), monté sur $dir"
+        fi
+      unless: >-
+        pool=$(kenv -q vfs.root.mountfrom | sed 's,^zfs:,,;s,/.*,,');
+        ! zfs list -H -o name "$pool/encrypted" >/dev/null 2>&1 ||
+        [ "$(zfs get -H -o value mounted "$pool/encrypted/tang" 2>/dev/null)" = yes ]
+      show_output: true
   # Clés du serveur (signature + échange), une seule fois.
   - command:
       run: "/usr/local/libexec/tangd-keygen /var/db/tang"
