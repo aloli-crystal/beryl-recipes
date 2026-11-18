@@ -14,6 +14,17 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.85 (18 novembre 2026)
+
+=== Modifié
+
+* `postgresql` — paramètre `datadir` (beryl >= 0.6.166) : dossier du
+  cluster, posé dans `postgresql_data` avant `initdb` (parent créé au nom
+  de `postgres`). Ex. `/home/postgres/data18` sur un zroot chiffré
+  (`profile: standard`, /home chiffré, /var en clair). Cluster existant
+  ailleurs : copié (PostgreSQL arrêté le temps de la copie), ancien dossier
+  conservé, à supprimer à la main. Vide : dossier du port, rien ne change.
+
 == 0.0.84 (18 novembre 2026)
 
 === Corrigé

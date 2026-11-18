@@ -37,6 +37,24 @@ description: |
   (`postgresql.auto.conf` du cluster, prioritaire sur `postgresql.conf`) ;
   un changement redémarre PostgreSQL (coupure de quelques secondes, les
   connexions en cours sont fermées).
+
+  EMPLACEMENT DU CLUSTER — `datadir` (vide = celui du port,
+  `/var/db/postgres/data<NN>`) est posé dans `postgresql_data` (rc.conf),
+  que lisent le script rc.d, `initdb` et `beryl pg-upgrade` (`--new-data`).
+  Ex., sur un serveur au zroot chiffré (`profile: standard`, /home chiffré,
+  /var en clair) :
+      apply_recipes:
+        - postgresql: { datadir: /home/postgres/data18 }
+  Le dossier parent est créé au nom de `postgres` (0750) ; `initdb` crée le
+  cluster dedans.
+
+  DÉPLACEMENT D'UN CLUSTER EXISTANT — cluster déjà initialisé ailleurs
+  (`postgresql_data` courant, sinon l'UNIQUE `/var/db/postgres/data*`) et
+  `datadir` vide : PostgreSQL arrêté s'il tournait, cluster copié
+  (`cp -Rp`), `postgresql_data` repointé, PostgreSQL relancé — coupure le
+  temps de la copie. L'ancien dossier est CONSERVÉ (en clair s'il était sous
+  /var) : à supprimer à la main après vérification. Plusieurs clusters sous
+  /var/db/postgres : refus (lequel ?).
 parameters:
   version:
     type: string
@@ -46,6 +64,10 @@ parameters:
     type: string
     default: ""
     description: "`server` ou `client` pour restreindre ; vide = les deux."
+  datadir:
+    type: string
+    default: ""
+    description: "Dossier du cluster (`postgresql_data`), ex. `/home/postgres/data18` ; vide = celui du port (`/var/db/postgres/data<NN>`)."
   initdb_flags:
     type: string
     default: "--encoding=utf-8 --lc-collate=C --data-checksums"
@@ -87,6 +109,44 @@ steps:
   - sysrc-set:
       key: postgresql_initdb_flags
       value: "{{ initdb_flags }}"
+  # Cluster ailleurs : déplacé (avant `postgresql_data`, que lit la garde).
+  # Gardes : pas de serveur (only: client) → rien ; déjà au bon endroit, ou
+  # `datadir` déjà initialisé, ou aucun cluster nulle part → rien.
+  - command:
+      if_set: "{{ datadir }}"
+      run: |
+        set -e
+        dst='{{ datadir }}'
+        src=$(sysrc -n postgresql_data 2>/dev/null || true)
+        if [ -z "$src" ]; then
+          set -- /var/db/postgres/data*/PG_VERSION
+          [ $# = 1 ] || { echo "refus : plusieurs clusters sous /var/db/postgres ($*) — déplacez à la main" >&2; exit 1; }
+          src=$(dirname "$1")
+        fi
+        up=0; service postgresql onestatus >/dev/null 2>&1 && up=1
+        [ $up = 0 ] || service postgresql stop
+        install -d -o postgres -g postgres -m 0750 "$(dirname "$dst")"
+        install -d -o postgres -g postgres -m 0700 "$dst"
+        cp -Rp "$src/." "$dst/"
+        sysrc postgresql_data="$dst"
+        [ $up = 0 ] || service postgresql start
+        echo "cluster copié de $src vers $dst ; $src conservé (à supprimer à la main)"
+      unless: >-
+        [ ! -f /usr/local/etc/rc.d/postgresql ] ||
+        [ "$(sysrc -n postgresql_data 2>/dev/null)" = '{{ datadir }}' ] ||
+        [ -f '{{ datadir }}/PG_VERSION' ] ||
+        { src=$(sysrc -n postgresql_data 2>/dev/null); if [ -n "$src" ]; then [ ! -f "$src/PG_VERSION" ]; else ! ls /var/db/postgres/data*/PG_VERSION >/dev/null 2>&1; fi; }
+      show_output: true
+  # Cluster neuf hors du port : parent au nom de postgres, puis
+  # `postgresql_data` AVANT initdb (qui le lit).
+  - command:
+      if_set: "{{ datadir }}"
+      run: "install -d -o postgres -g postgres -m 0750 \"$(dirname '{{ datadir }}')\""
+      unless: "[ ! -f /usr/local/etc/rc.d/postgresql ] || [ -d \"$(dirname '{{ datadir }}')\" ]"
+  - sysrc-set:
+      if_set: "{{ datadir }}"
+      key: postgresql_data
+      value: "{{ datadir }}"
   - postgresql-initdb: {} # se skippe si pas de serveur (only: client)
   - service-enable:
       name: postgresql
