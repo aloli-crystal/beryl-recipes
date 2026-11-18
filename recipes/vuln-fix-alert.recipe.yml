@@ -12,8 +12,9 @@ description: |
   listait chaque jour tous les vulnérables, corrigeables ou non ; la
   recette `periodic-quiet` y coupe l'audit et s'appuie sur celle-ci.
 
-  monit envoie UN courriel quand un correctif devient disponible, puis un
-  courriel « rétabli » une fois la mise à jour faite — pas de rappel
+  monit envoie UN courriel quand un correctif devient disponible, et RIEN
+  une fois la mise à jour faite (`ignore` au retour à la normale, FreeBSD ;
+  SUSE, monit 5.26 sans `ignore`, garde ce courriel) — pas de rappel
   quotidien entre les deux. Le contrôle tourne toutes les 6 heures
   (`check_schedule`) : il met à jour la base des failles (`pkg audit -F`)
   et les catalogues des dépôts (`pkg update`), sans rien installer.
@@ -176,9 +177,9 @@ steps:
           with timeout 600 seconds
           every "{{ check_schedule }}"
           if status = 1 then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
           if status > 1 for 2 cycles then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
 
   - service-reload:
       name: monit

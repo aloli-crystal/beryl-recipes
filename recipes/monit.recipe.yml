@@ -176,9 +176,10 @@ steps:
         # relance seul), pid/ppid (PID changé après relance), instance
         # (démarrage/rechargement de monit, à chaque apply), action…
         # Le RÉTABLISSEMENT (« Status succeeded »…) n'appelle aucune action :
-        # chaque test porte `else if succeeded then exec "/usr/bin/true"`, qui
-        # remplace le mail de retour à la normale envoyé par défaut (`else
-        # ignore` n'existe qu'à partir de monit 5.34 ; SUSE a la 5.26).
+        # chaque test porte `else if succeeded then <action muette>` (variable
+        # beryl monit_quiet_recovery) : `ignore` sous FreeBSD, seule action
+        # que monit n'accompagne pas d'un mail ; un `exec` neutre sous SUSE
+        # (monit 5.26, sans `ignore` : le mail de retour y reste).
         set alert {{ alert_email }} on { resource } with mail-format {
           from:    @@USER@@
           subject: [monit][{{ fqdn }}] $SERVICE · ressources · $EVENT
@@ -264,15 +265,15 @@ steps:
 
         check system $HOST
           if memory usage > 85% for 7 cycles then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
           if swap usage   > 50% for 7 cycles then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
 
         check filesystem rootfs with path /
           if space usage > {{ disk_threshold }}% then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
           if inode usage > {{ disk_threshold }}% then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
 
         # Relais de mail, services vitaux et sondes des autres recettes (ex.
         # zfs-scrub). Le dossier est créé par cette recette.

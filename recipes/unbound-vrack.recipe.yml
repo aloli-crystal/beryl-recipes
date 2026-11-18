@@ -73,7 +73,7 @@ steps:
         # (10 contrôles, ~10 min) → intervention.
         check host unbound-vrack with address {{ vrack_ip }}
           if failed port 53 type tcp for 10 cycles then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
   - service-reload:
       name: monit
       if_changed: true

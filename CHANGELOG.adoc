@@ -14,6 +14,20 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.82 (18 novembre 2026)
+
+=== Modifié
+
+* `monit`, `vuln-fix-alert`, `zfs-scrub`, `static-site-https`,
+  `db-dump-signed`, `twin-push`, `pkg-mirror`, `distfiles-mirror`,
+  `poudriere-nginx`, `tang-server`, `unbound-vrack` — retour à la normale
+  sans courriel : `else if succeeded then {{ monit_quiet_recovery }}`
+  (beryl >= 0.6.162 ; `ignore` sous FreeBSD). L'ancien `exec
+  "/usr/bin/true"` déclenchait quand même l'alerte de monit (« Status
+  succeeded », ex. `vuln-fix` après chaque mise à jour) : un courriel sans
+  action à faire. `zfs-unlock-alert` garde son `exec` (relance des
+  services après déverrouillage).
+
 == 0.0.81 (17 novembre 2026)
 
 === Modifié

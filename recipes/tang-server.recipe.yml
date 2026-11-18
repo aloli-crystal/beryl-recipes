@@ -128,7 +128,7 @@ steps:
         # (10 contrôles, ~10 min) → intervention.
         check host tangd-adv with address 127.0.0.1
           if failed port {{ port }} protocol http request "/adv" for 10 cycles then alert
-            else if succeeded then exec "/usr/bin/true"
+            else if succeeded then {{ monit_quiet_recovery }}
   - service-reload:
       name: monit
       if_changed: true

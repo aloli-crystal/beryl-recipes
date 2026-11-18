@@ -102,7 +102,7 @@ steps:
              request "/FreeBSD:15:amd64/meta.conf"
              and certificate valid > 14 days
              for 7 cycles then alert
-               else if succeeded then exec "/usr/bin/true"
+               else if succeeded then {{ monit_quiet_recovery }}
   - service-reload:
       name: monit
       if_changed: true
