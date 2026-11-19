@@ -6,8 +6,11 @@ description: |
   l'utilisateur d'administration et sudo, rien ne se connecte en root à un
   serveur installé. Exception, calculée par beryl (`{{ root_ssh_login }}`,
   même règle que le bootstrap) : `/home` chiffré (profil `standard` du pool
-  boot) → root PAR CLÉ (`prohibit-password`), porte de secours tant que les
-  datasets chiffrés ne sont pas déverrouillés. Requiert beryl >= 0.6.58.
+  boot) → `forced-commands-only` : root n'ouvre JAMAIS de session ; ses clés
+  (posées par le bootstrap) sont restreintes à `/usr/local/sbin/beryl-unlock`,
+  qui n'exécute que les opérations ZFS de `beryl unlock` (sudo est
+  inutilisable tant que /usr/local/etc est verrouillé). Requiert
+  beryl >= 0.6.174.
 systems: [freebsd, linux]
 parameters:
   permit_root_login:
@@ -15,7 +18,7 @@ parameters:
     default: "{{ root_ssh_login }}"
     description: |
       Valeur de PermitRootLogin. Par défaut celle calculée par beryl (`no`, ou
-      `prohibit-password` avec /home chiffré) ; à ne surcharger qu'en
+      `forced-commands-only` avec /home chiffré) ; à ne surcharger qu'en
       connaissance de cause.
 steps:
   - sshd-config-set:
