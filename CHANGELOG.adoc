@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.87 (20 novembre 2026)
+
+=== Modifié
+
+* `zfs-unlock-alert` — avec la clé SMS, `/etc/cron.d/zfs-unlock-boot`
+  (`@reboot`) : SMS si les données sont encore verrouillées une minute
+  après le démarrage, quand monit ne peut pas alerter (sa configuration
+  est dans /usr/local/etc, chiffré avec /home). Un dataset `canmount=off`
+  (`zroot/encrypted`) n'est plus signalé « non monté ».
+* `ovh-sms` — identifiants dans `/etc/ovh-sms.conf` (lisibles avant le
+  déverrouillage) ; l'ancien `/usr/local/etc/ovh-sms.conf` est retiré.
+
 == 0.0.86 (19 novembre 2026)
 
 === Modifié

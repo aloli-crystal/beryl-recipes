@@ -15,8 +15,18 @@ description: |
   (`OVH_SMS_CONSUMER_KEY`, recette `ovh-sms`, à déclarer aussi) : un SMS au
   passage à « verrouillé », en ASCII.
 
+  Serveur à /home chiffré (profil standard) : monit ne démarre qu'APRÈS le
+  déverrouillage (sa configuration est dans /usr/local/etc, chiffré), il ne
+  peut donc pas prévenir d'un redémarrage subi (coupure, panic). Avec la
+  clé SMS, `/etc/cron.d/zfs-unlock-boot` (en clair) lance au démarrage
+  `zfs-unlock-check.sh --boot` : si monit n'a pas de configuration lisible,
+  attente d'une minute (un `beryl reboot` déverrouille dans ce délai), puis
+  SMS si les données sont toujours verrouillées (5 essais, une minute
+  d'écart, le temps que le réseau monte).
+
   `datasets` : datasets chiffrés à surveiller, séparés par des espaces
-  (ex. `zdata` ; un pool chiffré à la racine se nomme comme le pool).
+  (ex. `zdata` ; un pool chiffré à la racine se nomme comme le pool ;
+  /home chiffré : `zroot/encrypted zdata`).
 
   `restart_services` : services qui vivent sur ces données (base, site…),
   REDÉMARRÉS dans l'ordre donné au retour à « déverrouillé » : au boot, leur
@@ -60,6 +70,20 @@ steps:
           [ -x /usr/local/sbin/ovh-sms ] || exit 0
           exec /usr/local/sbin/ovh-sms "{{ fqdn }} : donnees chiffrees verrouillees. Deverrouiller : {{ unlock_command }}"
         fi
+        if [ "${1:-}" = --boot ]; then
+          # monit configuré (monitrc lisible) : c'est lui qui alerte.
+          [ -r /usr/local/etc/monitrc ] && exit 0
+          sleep 60
+          "$0" >/dev/null 2>&1 && exit 0
+          n=0
+          until "$0" --sms >/dev/null 2>&1; do
+            n=$((n + 1))
+            [ "$n" -ge 5 ] && { logger -t zfs-unlock "SMS de déverrouillage NON envoyé (5 essais)"; exit 1; }
+            sleep 60
+          done
+          logger -t zfs-unlock "données verrouillées au démarrage : SMS envoyé"
+          exit 0
+        fi
         if [ "${1:-}" = --restart ]; then
           rc=0
           for s in {{ restart_services }}; do
@@ -86,6 +110,9 @@ steps:
             rc=1
             continue
           fi
+          # canmount=off (encryptionroot `zroot/encrypted`) : jamais monté, la
+          # clé chargée suffit.
+          [ "$(zfs get -H -o value canmount "$ds" 2>/dev/null)" = off ] && continue
           if [ "$(zfs get -H -o value mounted "$ds" 2>/dev/null)" != yes ]; then
             echo "$ds : non monté"
             rc=1
@@ -122,6 +149,20 @@ steps:
           with timeout 30 seconds
           if status != 0 then exec "/usr/local/sbin/zfs-unlock-check.sh --sms"
             else if succeeded then exec "/usr/local/sbin/zfs-unlock-check.sh --restart"
+  # Alerte au démarrage, hors monit (cf. description) : cron lit
+  # /etc/cron.d, en clair même quand /usr/local/etc est chiffré.
+  - file-write:
+      path: /etc/cron.d/zfs-unlock-boot
+      mode: "0644"
+      owner: "root:wheel"
+      if_secret: OVH_SMS_CONSUMER_KEY
+      content: |
+        # Géré par beryl (recette zfs-unlock-alert). SMS si les données
+        # chiffrées sont encore verrouillées une minute après le démarrage.
+        @reboot root /usr/local/sbin/zfs-unlock-check.sh --boot
+  - file-absent:
+      path: /etc/cron.d/zfs-unlock-boot
+      unless_secret: OVH_SMS_CONSUMER_KEY
   - service-reload:
       name: monit
       if_changed: true

@@ -28,6 +28,12 @@ description: |
   Message en ASCII de préférence (un SMS GSM ne porte pas tous les accents).
 
   Essai, sur le serveur :  sudo /usr/local/sbin/ovh-sms "essai beryl"
+
+  Identifiants dans `/etc/ovh-sms.conf` (root, 0600), PAS sous
+  /usr/local/etc : sur un serveur à /home chiffré (profil standard),
+  /usr/local/etc l'est aussi, et l'alerte de déverrouillage doit partir
+  AVANT le déverrouillage. Clé limitée à l'envoi de SMS : l'avoir en clair
+  sur le disque ne permet que d'envoyer des SMS.
 parameters:
   endpoint:
     type: string
@@ -55,7 +61,7 @@ steps:
   - pkg-install:
       packages: [curl]
   - secret-file:
-      path: /usr/local/etc/ovh-sms.conf
+      path: /etc/ovh-sms.conf
       mode: "0600"
       owner: "root:wheel"
       env:
@@ -67,6 +73,9 @@ steps:
         OVH_SMS_AK='@@AK@@'
         OVH_SMS_AS='@@AS@@'
         OVH_SMS_CK='@@CK@@'
+  # Ancien emplacement (recette < 0.0.87), chiffré avec /home.
+  - file-absent:
+      path: /usr/local/etc/ovh-sms.conf
   # Signature OVH : "$1$" + sha1(AS+CK+méthode+URL+corps+horodatage), avec
   # l'horodatage du serveur d'API (/auth/time), pas l'horloge locale.
   - file-write:
@@ -81,7 +90,7 @@ steps:
         PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
         export PATH
         [ $# -eq 1 ] || { echo "usage : ovh-sms \"message\"" >&2; exit 2; }
-        . /usr/local/etc/ovh-sms.conf
+        . /etc/ovh-sms.conf
         api="{{ endpoint }}"
         url="$api/sms/{{ service }}/jobs"
         msg=$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')
