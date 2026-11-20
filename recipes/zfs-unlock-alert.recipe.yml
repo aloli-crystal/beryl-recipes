@@ -4,7 +4,7 @@ description: |
   pool non importé, clé non chargée ou dataset non monté (après un
   redémarrage, en mode `ssh_unlock` : la clé reste sur le poste de
   l'opérateur). Le mail dit quoi lancer (`unlock_command`, défaut
-  `beryl unlock <fqdn>`).
+  `beryl unlock <fqdn> --apply`).
 
   UN MAIL = UNE ACTION : alerte au passage à « verrouillé » (donc peu après
   chaque démarrage, monit attendant 30 s), puis « succeeded » au
@@ -48,7 +48,7 @@ parameters:
     description: Services redémarrés dans l'ordre au déverrouillage (ex. `mysql-server nginx`) ; vide = aucun.
   unlock_command:
     type: string
-    default: "beryl unlock {{ fqdn }}"
+    default: "beryl unlock {{ fqdn }} --apply"
     description: Commande de déverrouillage rappelée dans l'alerte.
 steps:
   - command:
@@ -68,7 +68,8 @@ steps:
         # (action `exec` de monit au retour à « déverrouillé »).
         if [ "${1:-}" = --sms ]; then
           [ -x /usr/local/sbin/ovh-sms ] || exit 0
-          exec /usr/local/sbin/ovh-sms "{{ fqdn }} : donnees chiffrees verrouillees. Deverrouiller : {{ unlock_command }}"
+          # Commande seule sur la dernière ligne : copiable telle quelle.
+          exec /usr/local/sbin/ovh-sms "$(printf '%s : donnees chiffrees verrouillees. Deverrouiller :\n%s' '{{ fqdn }}' '{{ unlock_command }}')"
         fi
         if [ "${1:-}" = --boot ]; then
           # monit configuré (monitrc lisible) : c'est lui qui alerte.

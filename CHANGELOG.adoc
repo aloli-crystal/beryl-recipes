@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.88 (20 novembre 2026)
+
+=== Modifié
+
+* `zfs-unlock-alert` — commande de déverrouillage seule sur la dernière
+  ligne du SMS, et `--apply` ajouté au défaut d'`unlock_command`
+  (`beryl unlock <fqdn> --apply` : sans lui, beryl fait un essai à blanc).
+* `ovh-sms` — les retours à la ligne du message sont transmis (`\n` du
+  JSON).
+
 == 0.0.87 (20 novembre 2026)
 
 === Modifié
