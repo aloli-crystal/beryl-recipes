@@ -14,6 +14,16 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.89 (22 novembre 2026)
+
+=== Corrigé
+
+* `poudriere-rsync` — `pid file = /var/run/rsyncd.pid` dans `rsyncd.conf`,
+  le fichier que suit le script rc du port. Sans lui, rc voyait le démon
+  « non démarré » : chaque `start` (sync, upgrade) en lançait un second qui
+  échouait sur le port 873 déjà pris, et `restart` n'arrêtait jamais
+  l'ancien. Le démon orphelin est arrêté une fois, puis relancé par rc.
+
 == 0.0.88 (20 novembre 2026)
 
 === Modifié

@@ -35,6 +35,9 @@ steps:
       content: |
         # Géré par beryl (recette poudriere-rsync) : lecture seule, vRack.
         address = {{ vrack_ip }}
+        # Fichier attendu par le script rc du port (pidfile) : sans lui,
+        # `service rsyncd status` ne voit pas le démon.
+        pid file = /var/run/rsyncd.pid
         hosts allow = {{ allow_from }}
         hosts deny = *
         use chroot = yes
@@ -52,6 +55,13 @@ steps:
         [distfiles]
             path = {{ distfiles }}
             comment = sources des ports
+  # Démon lancé AVANT `pid file` (recette < 0.0.89) : invisible pour rc
+  # (« non démarré »), il garde le port 873 et chaque nouveau `start` échoue
+  # (« unable to bind any inbound sockets »). Arrêté une fois, puis relancé
+  # par rc, qui le suit ensuite par son pidfile.
+  - command:
+      run: "pkill -f '^/usr/local/bin/rsync --daemon'; sleep 1"
+      unless: "test -s /var/run/rsyncd.pid || ! pgrep -f '^/usr/local/bin/rsync --daemon' >/dev/null"
   - service-enable:
       name: rsyncd
       start: true
