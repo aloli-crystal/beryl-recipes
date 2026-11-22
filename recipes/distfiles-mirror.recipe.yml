@@ -51,6 +51,11 @@ steps:
       content: |
         # Géré par beryl (recette distfiles-mirror).
         40 4 * * * root /usr/bin/lockf -s -t 0 /var/run/distfiles-mirror.lock /usr/local/sbin/distfiles-mirror-sync
+  # cron ne relit pas toujours /usr/local/etc/cron.d (dataset chiffré monté
+  # après son démarrage) : relancé tant qu'il est plus ancien que le fichier.
+  - command:
+      run: "service cron restart"
+      unless: "test /var/run/cron.pid -nt /usr/local/etc/cron.d/distfiles-mirror"
   - command:
       run: "/usr/sbin/daemon -f /usr/bin/lockf -s -t 0 /var/run/distfiles-mirror.lock /usr/local/sbin/distfiles-mirror-sync"
       unless: "test -e /var/db/distfiles-mirror.last"

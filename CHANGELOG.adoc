@@ -14,6 +14,18 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.90 (22 novembre 2026)
+
+=== Corrigé
+
+* `acme`, `distfiles-mirror`, `pkg-mirror` — cron relancé tant qu'il est
+  plus ancien que le fichier posé dans `/usr/local/etc/cron.d`. Ce dossier
+  est sur un dataset chiffré, monté par `beryl unlock` APRÈS le démarrage
+  de cron ; cron ne décide de relire ses tables que si la plus récente de
+  leurs dates change, et ne le voyait donc jamais : aucune tâche de ce
+  dossier ne tournait sur les bastions (miroirs figés depuis la 1ʳᵉ copie,
+  alerte monit à 2 jours).
+
 == 0.0.89 (22 novembre 2026)
 
 === Corrigé

@@ -63,6 +63,11 @@ steps:
       content: |
         # Géré par beryl (recette pkg-mirror).
         */15 * * * * root /usr/bin/lockf -s -t 0 /var/run/pkg-mirror.lock /usr/local/sbin/pkg-mirror-sync
+  # cron ne relit pas toujours /usr/local/etc/cron.d (dataset chiffré monté
+  # après son démarrage) : relancé tant qu'il est plus ancien que le fichier.
+  - command:
+      run: "service cron restart"
+      unless: "test /var/run/cron.pid -nt /usr/local/etc/cron.d/pkg-mirror"
   # 1ʳᵉ copie en arrière-plan (plusieurs Go) ; ensuite, le cron.
   - command:
       run: "/usr/sbin/daemon -f /usr/bin/lockf -s -t 0 /var/run/pkg-mirror.lock /usr/local/sbin/pkg-mirror-sync"

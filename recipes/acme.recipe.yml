@@ -83,6 +83,11 @@ steps:
         # Géré par beryl (recette acme) — d'après acme.sh-cron.d du port.
         SHELL=/bin/sh
         47 3 * * * acme /usr/bin/lockf -t 0 /tmp/.acme.sh.cronjob /usr/local/sbin/acme.sh --cron --home /var/db/acme/.acme.sh > /var/log/acme.sh.cronjob.log 2>&1
+  # cron ne relit pas toujours /usr/local/etc/cron.d (dataset chiffré monté
+  # après son démarrage) : relancé tant qu'il est plus ancien que le fichier.
+  - command:
+      run: "service cron restart"
+      unless: "test /var/run/cron.pid -nt /usr/local/etc/cron.d/acme"
   # acme (non root) recharge nginx après renouvellement : CETTE commande seule.
   - file-write:
       path: /usr/local/etc/sudoers.d/acme
