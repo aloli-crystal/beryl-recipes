@@ -45,6 +45,11 @@ steps:
   - service-enable:
       name: clamav_freshclam # scripts rc FreeBSD en underscore (pas tiret)
       start: true
+  # freshclam.conf changé (ex. ancien miroir clamav-mirror et son dossier de
+  # bases) : le démon ne le relit qu'à son démarrage.
+  - service-restart:
+      name: clamav_freshclam
+      if_changed: true
   - service-enable:
       name: clamav_clamd
       start: true

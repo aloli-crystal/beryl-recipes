@@ -1,0 +1,119 @@
+recipe: pkg-cache-client
+description: |
+  Fait passer les dépôts pkg d'un serveur par le cache des bastions
+  (recette `pkg-cache`) : l'URL de chaque dépôt dont l'hôte est relayé
+  devient `<base>/<nom>/<même chemin>`, `mirror_type` à `none`.
+
+  `repos` : liste `<hôte>=<nom>` séparée par des espaces, le `<nom>` étant
+  celui du jeu d'arguments de `pkg-cache` sur les bastions :
+
+    apply_recipes:
+      - pkg-cache-client: { repos: "pkg.FreeBSD.org=freebsd pkg.example.net=monrepo" }
+
+  * dépôt défini dans `/usr/local/etc/pkg/repos/` (FreeBSD-base, dépôts
+    privés…) : URL réécrite SUR PLACE, le reste du fichier intact
+    (signature, priorité ; `beryl os-upgrade` y retrouve `base_release_N`) ;
+  * dépôt défini seulement dans `/etc/pkg/` (dépôts des ports du système de
+    base) : fichier de surcharge du même nom dans `/usr/local/etc/pkg/repos/`
+    (pkg fusionne les champs), URL et `mirror_type` seulement.
+  `${ABI}` et les autres variables de pkg restent dans les URL : une montée
+  de version les suit sans repasser par ici.
+
+  Base par défaut : le nom de service des bastions (`bastions.<zone du
+  vRack>`, un A par bastion) → un bastion verrouillé ou en panne, pkg passe
+  au suivant. Validation : `pkg update -f` juste après la réécriture.
+
+  ⚠️ Jamais sur un bastion ni sur le builder : un bastion dont nginx est
+  arrêté ne pourrait plus installer nginx.
+requires_vrack: true
+requires:
+  - vrack-resolver
+parameters:
+  base:
+    type: string
+    default: "http://bastions.{{ vrack_zone }}/pkg-cache"
+    description: Racine des caches des bastions, sans barre finale.
+  repos:
+    type: string
+    default: "pkg.FreeBSD.org=freebsd"
+    description: Dépôts relayés, `<hôte>=<nom>` séparés par des espaces.
+steps:
+  - file-write:
+      path: /usr/local/sbin/pkg-cache-client
+      mode: "0755"
+      content: |
+        #!/bin/sh
+        # Géré par beryl (recette pkg-cache-client).
+        # pkg-cache-client [--check] <base> <hôte>=<nom>...
+        # --check : sortie 1 s'il reste un dépôt à faire passer par le cache.
+        set -eu
+        check=no
+        if [ "${1:-}" = --check ]; then check=yes; shift; fi
+        base=$1
+        shift
+        maps="$*"
+        d=/usr/local/etc/pkg/repos
+        tab=$(printf '\t')
+        todo=0
+
+        # URL relayée (sur la sortie), ou échec si son hôte ne l'est pas.
+        relay() {
+          for m in $maps; do
+            h=${m%%=*}
+            n=${m#*=}
+            r=$(printf '%s\n' "$1" | sed -E "s#^(pkg\+)?https?://$h/#$base/$n/#I")
+            if [ "$r" != "$1" ]; then printf '%s\n' "$r"; return 0; fi
+          done
+          return 1
+        }
+
+        # « nom<TAB>url » de chaque dépôt d'un fichier de configuration.
+        repos() {
+          awk '
+            /^[[:space:]]*#/ { next }
+            /^[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]*:[[:space:]]*\{/ {
+              n = $0; sub(/^[[:space:]]*/, "", n); sub(/[[:space:]]*:.*/, "", n); next
+            }
+            /^[[:space:]]*url[[:space:]]*:/ && n != "" {
+              u = $0; sub(/^[^"]*"/, "", u); sub(/".*/, "", u); print n "\t" u
+            }
+          ' "$1"
+        }
+
+        mkdir -p "$d"
+        # 1. Dépôts locaux : URL réécrite sur place.
+        for f in "$d"/*.conf; do
+          [ -e "$f" ] || continue
+          while IFS="$tab" read -r name url; do
+            [ -n "$url" ] || continue
+            new=$(relay "$url") || continue
+            todo=1
+            [ "$check" = yes ] && continue
+            sed -i '' "s#\"$url\"#\"$new\"#" "$f"
+            sed -i '' -E 's/(mirror_type[[:space:]]*:[[:space:]]*)"srv"/\1"none"/' "$f"
+            echo "pkg-cache-client : $name → $new ($f)"
+          done <<EOF
+        $(repos "$f")
+        EOF
+        done
+        # 2. Dépôts du système (/etc/pkg) sans fichier local : surcharge.
+        for f in /etc/pkg/*.conf; do
+          [ -e "$f" ] || continue
+          while IFS="$tab" read -r name url; do
+            [ -n "$url" ] || continue
+            [ -e "$d/$name.conf" ] && continue
+            new=$(relay "$url") || continue
+            todo=1
+            [ "$check" = yes ] && continue
+            printf '# Géré par beryl (recette pkg-cache-client) : dépôt de %s\n# relayé par le cache des bastions.\n%s: {\n  url: "%s",\n  mirror_type: "none"\n}\n' \
+              "$f" "$name" "$new" > "$d/$name.conf"
+            echo "pkg-cache-client : $name → $new ($d/$name.conf)"
+          done <<EOF
+        $(repos "$f")
+        EOF
+        done
+        [ "$check" = yes ] && [ "$todo" = 1 ] && exit 1
+        exit 0
+  - command:
+      run: "/usr/local/sbin/pkg-cache-client '{{ base }}' {{ repos }} && pkg update -f -q"
+      unless: "/usr/local/sbin/pkg-cache-client --check '{{ base }}' {{ repos }}"

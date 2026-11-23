@@ -1,10 +1,10 @@
 recipe: poudriere-rsync
 description: |
-  Côté BUILDER poudriere : expose en LECTURE SEULE, sur le réseau privé, le
-  dépôt de paquets (module `packages`) et les sources des ports (module
-  `distfiles`) par un démon rsync, pour les miroirs des bastions
-  (`pkg-mirror`, `distfiles-mirror`). Données publiques ou signées, sans
-  compte ni clé.
+  Côté BUILDER poudriere : expose en LECTURE SEULE, sur le réseau privé, les
+  sources des ports (module `distfiles`) par un démon rsync, pour le miroir
+  des bastions (`distfiles-mirror`). Données publiques, sans compte ni clé.
+  (Les paquets passent par le cache des bastions, recette `pkg-cache` :
+  plus de module `packages`.)
 
   Verrous : `address = {{ vrack_ip }}` (rien sur l'IP publique), `hosts
   allow` = `allow_from` seulement, `read only`, modules non listés, chroot.
@@ -22,10 +22,6 @@ parameters:
     type: string
     default: /usr/local/poudriere/distfiles
     description: Dossier des distfiles de poudriere (DISTFILES_CACHE).
-  packages:
-    type: string
-    default: /usr/local/poudriere/data/packages
-    description: Dossier des dépôts de paquets de poudriere.
 steps:
   - pkg-install:
       packages: [rsync]
@@ -47,10 +43,6 @@ steps:
         gid = nobody
         max connections = 6
         timeout = 600
-
-        [packages]
-            path = {{ packages }}
-            comment = depot de paquets poudriere
 
         [distfiles]
             path = {{ distfiles }}

@@ -1,10 +1,13 @@
 recipe: mirror-http
 description: |
-  Socle des MIROIRS d'un bastion (`pkg-mirror`, `clamav-mirror`,
-  `distfiles-mirror`) : un dataset ZFS dédié (`dataset`, monté sur `root`)
-  servi en HTTP, en lecture seule, sur le RÉSEAU PRIVÉ uniquement (IP vRack
-  du host), chaque miroir dans son sous-dossier (`<root>/pkg`, `/clamav`,
-  `/distfiles`).
+  Socle des MIROIRS d'un bastion (`distfiles-mirror`, `pkg-cache`) : un
+  dataset ZFS dédié (`dataset`, monté sur `root`) servi en HTTP, en lecture
+  seule, sur le RÉSEAU PRIVÉ uniquement (IP vRack du host), chaque miroir
+  dans son sous-dossier (ex. `<root>/distfiles`).
+
+  D'autres recettes ajoutent leurs `location` à ce serveur (même adresse,
+  mêmes verrous pf) par un fichier dans `/usr/local/etc/nginx/mirror.d/`
+  (ex. `pkg-cache`).
 
   Règle : un bastion est la machine la plus exposée du parc → n'y miroiter
   QUE des données publiques ou signées, reconstructibles (paquets signés,
@@ -42,6 +45,11 @@ steps:
   - command:
       run: "zfs create -p {{ dataset }}"
       unless: "zfs list -H -o name {{ dataset }} >/dev/null 2>&1"
+  # `location` des recettes greffées sur ce serveur (pkg-cache…).
+  - directory:
+      path: /usr/local/etc/nginx/mirror.d
+      owner: "root:wheel"
+      mode: "0755"
   - file-write:
       path: /usr/local/etc/nginx/conf.d/mirror.conf
       mode: "0644"
@@ -66,6 +74,8 @@ steps:
             location / {
                 limit_except GET { deny all; }
             }
+
+            include /usr/local/etc/nginx/mirror.d/*.conf;
         }
   - service-reload:
       name: nginx

@@ -1,0 +1,79 @@
+recipe: clamav-vrack
+description: |
+  Antivirus PARTAGÉ sur le réseau privé : le démon clamd d'un bastion (base
+  en mémoire, à jour par freshclam) écoute en TCP sur l'IP vRack ; les
+  applications des autres serveurs lui envoient le fichier à vérifier
+  (protocole INSTREAM, le fichier est transmis, pas de partage de disque)
+  et reçoivent `OK` ou `FOUND`. Les serveurs d'application n'ont ni clamd
+  ni base virale (mémoire laissée aux applications).
+
+  Côté application : une bibliothèque clamd (Ruby : `clamav-client`)
+  pointée sur `tcp://bastions.<zone du vRack>:3310` — le nom de service des
+  bastions, un A par bastion : si l'un ne répond pas, le client passe au
+  suivant.
+
+  SÉCURITÉ : un clamd TCP ouvert peut être saturé ou sondé. Deux verrous :
+  `TCPAddr` = l'IP vRack SEULE (posé avant `TCPSocket`, clamd n'écoute
+  jamais toutes les adresses) et pf n'ouvre 3310 qu'à `allow_from`.
+
+  Taille maximale d'un fichier transmis : `stream_max_length` (clamd refuse
+  au-delà — l'application doit traiter ce refus).
+
+  Sur un bastion qui avait `clamav-mirror` (miroir des bases pour des clamd
+  locaux, remplacé par cette recette) : son contrôle monit et ses bases
+  sont retirés.
+requires_vrack: true
+requires:
+  - clamav
+  - monit
+  - vrack-interface
+parameters:
+  allow_from:
+    type: string
+    default: "{{ vrack_subnet }}"
+    description: Réseau (IPv4, CIDR) autorisé à faire vérifier des fichiers — le vRack.
+  stream_max_length:
+    type: string
+    default: 100M
+    description: Taille maximale d'un fichier transmis (directive clamd StreamMaxLength).
+steps:
+  # TCPAddr d'abord → clamd n'écoute JAMAIS toutes les adresses.
+  - clamd-config-set: { key: TCPAddr, value: "{{ vrack_ip }}" }
+  - clamd-config-set: { key: TCPSocket, value: "3310" }
+  - clamd-config-set: { key: StreamMaxLength, value: "{{ stream_max_length }}" }
+  # pf : module chargé AVANT les règles. 3310 seulement depuis le vRack.
+  - command:
+      run: "kldload -n pf"
+      unless: "kldstat -q -m pf"
+  - pf-rule:
+      rule: "pass in quick inet proto tcp from {{ allow_from }} to {{ vrack_ip }} port 3310"
+  - pf-rule:
+      rule: "block in quick proto tcp to port 3310"
+  - service-enable:
+      name: pf
+      start: true
+  # Supervision : démon relancé, alerte s'il ne répond plus sur le vRack.
+  - file-write:
+      path: /usr/local/etc/monit.d/clamav-vrack.conf
+      mode: "0600"
+      content: |
+        # Géré par beryl (recette clamav-vrack).
+        check process clamd matching "/usr/local/sbin/clamd"
+          start program = "/usr/sbin/service clamav_clamd start"
+          stop program  = "/usr/sbin/service clamav_clamd stop"
+          if failed host {{ vrack_ip }} port 3310 type tcp for 3 cycles then restart
+          if 3 restarts within 5 cycles then unmonitor
+        check process freshclam matching "/usr/local/bin/freshclam"
+          start program = "/usr/sbin/service clamav_freshclam start"
+          stop program  = "/usr/sbin/service clamav_freshclam stop"
+          if 3 restarts within 5 cycles then unmonitor
+  # Ancien miroir des bases (clamav-mirror), remplacé.
+  - file-absent:
+      path: /usr/local/etc/monit.d/clamav-mirror.conf
+  - command:
+      run: "rm -rf /data/mirror/clamav"
+      unless: "test ! -e /data/mirror/clamav"
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

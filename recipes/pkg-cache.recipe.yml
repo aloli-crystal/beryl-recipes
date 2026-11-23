@@ -1,0 +1,149 @@
+recipe: pkg-cache
+description: |
+  Cache de paquets sur un bastion : nginx en relais-cache (proxy_cache) d'un
+  dépôt pkg, servi sur le RÉSEAU PRIVÉ par le serveur de `mirror-http`. Le
+  premier serveur qui demande un fichier le fait venir d'Internet ; les
+  suivants l'ont depuis le bastion, sans attendre le réseau. Seul ce que le
+  parc utilise est gardé (pas de copie complète du dépôt).
+
+  Un jeu d'arguments par dépôt relayé (`name` les distingue) :
+
+    apply_recipes:
+      - pkg-cache: { name: freebsd, upstream: "https://pkg.FreeBSD.org" }
+      - pkg-cache: { name: monrepo, upstream: "https://pkg.example.net" }
+
+  servis sur `http://<bastion>/pkg-cache/<name>/…` ; les clients visent le
+  nom de service des bastions, `bastions.<zone du vRack>` (recette
+  `pkg-cache-client`).
+
+  Durées :
+  * `…/Hashed/…` (nom de fichier = empreinte du contenu, immuable) : gardé
+    un an sans revalidation ;
+  * tout le reste (catalogues `meta.conf`, `packagesite.*`, `data.*`, et
+    les paquets à nom simple, qu'une reconstruction à version égale peut
+    remplacer) : `ttl` (1 min par défaut), puis REVALIDÉ auprès du dépôt
+    (requête conditionnelle : 304 sans le corps, le fichier du cache resert).
+  Plusieurs demandes simultanées du même fichier : UN seul téléchargement,
+  les autres attendent sa fin (`proxy_cache_lock`). Dépôt injoignable : le
+  cache sert ce qu'il a (`proxy_cache_use_stale`).
+
+  Sécurité : pkg vérifie toujours la signature du dépôt (catalogue) et
+  l'empreinte de chaque paquet ; le cache ne peut rien fabriquer. Le dépôt
+  amont est joint en HTTPS, certificat VÉRIFIÉ (racines `ca_root_nss`).
+
+  Cache dans un dataset dédié (`dataset`, hors de la racine servie par
+  `mirror-http`, donc jamais listé), limité à `max_size`.
+requires_vrack: true
+requires:
+  - mirror-http
+parameters:
+  dataset:
+    type: string
+    default: zdata/pkg-cache
+    description: Dataset ZFS du cache (créé avec ses parents, hérite du montage du pool).
+  max_size:
+    type: string
+    default: 50g
+    description: Taille maximale du cache de CE dépôt (nginx retire les fichiers les moins demandés au-delà).
+  name:
+    type: string
+    description: Nom court du dépôt relayé (lettres, chiffres, tiret) — chemin `/pkg-cache/<name>/` et nom de zone.
+  root:
+    type: string
+    default: /data/pkg-cache
+    description: Point de montage de `dataset`.
+  ttl:
+    type: string
+    default: 1m
+    description: Durée avant revalidation des catalogues et des paquets à nom simple.
+  upstream:
+    type: string
+    description: URL HTTPS du dépôt relayé, sans barre finale (ex. https://pkg.FreeBSD.org).
+steps:
+  - pkg-install:
+      packages: [ca_root_nss]
+  - command:
+      run: "zfs create -p {{ dataset }}"
+      unless: "zfs list -H -o name {{ dataset }} >/dev/null 2>&1"
+  - directory:
+      path: "{{ root }}/{{ name }}"
+      owner: "www:www"
+      mode: "0750"
+  # Zone du cache : contexte `http` (conf.d/ du socle nginx-lite).
+  - file-write:
+      path: "/usr/local/etc/nginx/conf.d/pkg-cache-{{ name }}.conf"
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette pkg-cache, dépôt {{ name }}).
+        proxy_cache_path {{ root }}/{{ name }} levels=1:2 use_temp_path=off
+                         keys_zone=pkg_cache_{{ name }}:10m
+                         max_size={{ max_size }} inactive=90d;
+  # Emplacements greffés sur le serveur de mirror-http (adresse vRack).
+  - file-write:
+      path: "/usr/local/etc/nginx/mirror.d/pkg-cache-{{ name }}.conf"
+      mode: "0644"
+      content: |
+        # Géré par beryl (recette pkg-cache, dépôt {{ name }}) : relais de
+        # {{ upstream }}.
+        #
+        # Nom de l'amont résolu À L'USAGE (adresses de CDN changeantes ;
+        # pas d'échec au démarrage de nginx si le DNS public manque) :
+        # résolveur local du bastion.
+        location ~ ^/pkg-cache/{{ name }}/(?<pkg_cache_path>.*/Hashed/.*)$ {
+            limit_except GET { deny all; }
+            resolver 127.0.0.1 valid=300s ipv6=off;
+            proxy_pass {{ upstream }}/$pkg_cache_path;
+            proxy_ssl_server_name on;
+            proxy_ssl_verify on;
+            proxy_ssl_verify_depth 4;
+            proxy_ssl_trusted_certificate /usr/local/share/certs/ca-root-nss.crt;
+            proxy_cache pkg_cache_{{ name }};
+            proxy_cache_key $uri;
+            proxy_cache_lock on;
+            proxy_cache_lock_age 10m;
+            proxy_cache_lock_timeout 10m;
+            proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+            proxy_ignore_headers Cache-Control Expires Set-Cookie;
+            proxy_cache_valid 200 365d;
+            proxy_cache_valid 404 1m;
+            add_header X-Cache $upstream_cache_status;
+        }
+        location ~ ^/pkg-cache/{{ name }}/(?<pkg_cache_path>.*)$ {
+            limit_except GET { deny all; }
+            resolver 127.0.0.1 valid=300s ipv6=off;
+            proxy_pass {{ upstream }}/$pkg_cache_path;
+            proxy_ssl_server_name on;
+            proxy_ssl_verify on;
+            proxy_ssl_verify_depth 4;
+            proxy_ssl_trusted_certificate /usr/local/share/certs/ca-root-nss.crt;
+            proxy_cache pkg_cache_{{ name }};
+            proxy_cache_key $uri;
+            proxy_cache_lock on;
+            proxy_cache_lock_age 10m;
+            proxy_cache_lock_timeout 10m;
+            proxy_cache_revalidate on;
+            # Pas de `updating` : à l'échéance, la demande attend la
+            # revalidation (un catalogue tout juste publié est vu aussitôt).
+            proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+            proxy_ignore_headers Cache-Control Expires Set-Cookie;
+            proxy_cache_valid 200 {{ ttl }};
+            proxy_cache_valid 404 1m;
+            add_header X-Cache $upstream_cache_status;
+        }
+  - service-reload:
+      name: nginx
+      if_changed: true
+  # Ancienne copie complète du dépôt (recette pkg-mirror), remplacée par ce
+  # cache : tâche, script, supervision, témoin et données (sous la racine
+  # par défaut de mirror-http).
+  - file-absent: { path: /usr/local/etc/cron.d/pkg-mirror }
+  - file-absent: { path: /usr/local/sbin/pkg-mirror-sync }
+  - file-absent: { path: /usr/local/etc/monit.d/pkg-mirror.conf }
+  - file-absent: { path: /var/db/pkg-mirror.last }
+  - command:
+      run: "rm -rf /data/mirror/pkg"
+      unless: "test ! -e /data/mirror/pkg"
+  - service-reload:
+      name: monit
+      if_changed: true
+      deferred: true

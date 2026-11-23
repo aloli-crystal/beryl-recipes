@@ -14,6 +14,38 @@ Versionnage par tags git aligné sur les jalons beryl :
 * `v1.0.0` — tronc commun rodé, format figé, recettes documentées
   et testées.
 
+== 0.0.91 (23 novembre 2026)
+
+=== Ajouté
+
+* `pkg-cache` — cache de paquets sur un bastion : nginx en relais-cache
+  d'un dépôt pkg (un jeu d'arguments par dépôt : `name`, `upstream`), servi
+  sur le vRack par le serveur de `mirror-http`. Le premier serveur qui
+  demande un fichier le fait venir d'Internet, les suivants l'ont depuis le
+  bastion ; un seul téléchargement pour des demandes simultanées ;
+  catalogues revalidés (`ttl`, 1 min), paquets `Hashed/` gardés un an ;
+  dépôt injoignable → le cache sert ce qu'il a. Retire l'ancienne copie
+  complète (`pkg-mirror`).
+* `pkg-cache-client` — fait passer les dépôts d'un serveur par ce cache
+  (`bastions.<zone>`, un A par bastion, beryl ≥ 0.6.188) : URL réécrite sur
+  place dans `/usr/local/etc/pkg/repos/`, surcharge pour les dépôts de
+  `/etc/pkg/` ; `${ABI}` conservé ; validé par `pkg update -f`.
+* `clamav-vrack` — clamd d'un bastion en TCP sur l'IP vRack (port 3310,
+  pf limité au vRack), pour les applications des autres serveurs ;
+  supervision monit. Retire l'ancien miroir des bases (`clamav-mirror`).
+
+=== Modifié
+
+* `mirror-http` — inclut `/usr/local/etc/nginx/mirror.d/*.conf` dans son
+  serveur (emplacements greffés par `pkg-cache`).
+* `clamav` — freshclam relancé quand sa configuration change.
+* `poudriere-rsync` — plus de module `packages` (plus de copie complète du
+  dépôt) : seulement `distfiles`.
+
+=== Retiré
+
+* `pkg-mirror` (→ `pkg-cache`) et `clamav-mirror` (→ `clamav-vrack`).
+
 == 0.0.90 (22 novembre 2026)
 
 === Corrigé
