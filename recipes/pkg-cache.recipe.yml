@@ -62,9 +62,14 @@ parameters:
 steps:
   - pkg-install:
       packages: [ca_root_nss]
+  # Fichiers de cache seulement, jamais exécutés : ni exécution ni setuid.
   - command:
-      run: "zfs create -p {{ dataset }}"
+      run: "zfs create -p -o exec=off -o setuid=off {{ dataset }}"
       unless: "zfs list -H -o name {{ dataset }} >/dev/null 2>&1"
+  # Dataset créé avant ces options (recette < 0.0.92).
+  - command:
+      run: "zfs set exec=off setuid=off {{ dataset }}"
+      unless: "test \"$(zfs get -H -o value exec,setuid {{ dataset }} | tr '\\n' ' ')\" = 'off off '"
   - directory:
       path: "{{ root }}/{{ name }}"
       owner: "www:www"
